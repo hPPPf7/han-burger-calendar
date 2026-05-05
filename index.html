@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Han Burger Calendar</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0c0d0f;
+        --panel: #121417;
+        --panel-2: #191c21;
+        --panel-3: #22262d;
+        --border: rgba(255, 255, 255, 0.11);
+        --border-strong: rgba(255, 255, 255, 0.2);
+        --text: #f2f4f7;
+        --muted: #a7afbd;
+        --faint: #707988;
+        --accent: #55c7a6;
+        --accent-2: #7aa7ff;
+        --amber: #ffd166;
+        --red: #ff7a7a;
+        --shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", "Microsoft JhengHei UI", "Noto Sans TC",
+          sans-serif;
+      }
+
+      html {
+        overflow-y: scroll;
+        scrollbar-gutter: stable;
+      }
+
+      body {
+        overflow-x: hidden;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app-shell {
+        display: grid;
+        min-height: 100vh;
+      }
+
+      .agenda-panel,
+      .calendar-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .event-form {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border-top: 1px solid var(--border);
+        background: #101215;
+      }
+
+      .event-form[hidden],
+      .add-event-button[hidden] {
+        display: none;
+      }
+
+      .event-form h2,
+      .agenda-panel h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      label,
+      .field {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #0f1114;
+        color: var(--text);
+        padding: 10px 11px;
+        outline: none;
+      }
+
+      textarea {
+        min-height: 74px;
+        resize: vertical;
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        border-color: rgba(85, 199, 166, 0.72);
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .color-options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .color-option {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel-2);
+      }
+
+      .color-option input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .color-option span {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--swatch);
+      }
+
+      .color-option:has(input:checked) {
+        border-color: var(--swatch);
+        box-shadow: inset 0 0 0 1px var(--swatch);
+      }
+
+      .primary-button {
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #07120f;
+        padding: 11px 12px;
+        font-weight: 800;
+      }
+
+      .secondary-button {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel-2);
+        color: var(--text);
+        padding: 10px 12px;
+      }
+
+      .add-event-button {
+        margin: 14px;
+      }
+
+      main {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 18px;
+        min-width: 0;
+        min-height: 100vh;
+        padding: 22px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-width: 0;
+      }
+
+      .date-heading {
+        min-width: 0;
+      }
+
+      .date-heading p {
+        margin: 0 0 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .date-heading h2 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .content-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 18px;
+        min-height: 0;
+        align-items: stretch;
+      }
+
+      .calendar-panel {
+        min-width: 0;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .calendar-header {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+
+      .calendar-header div {
+        padding: 12px 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        grid-template-rows: repeat(5, minmax(0, 1fr));
+        min-height: 540px;
+      }
+
+      .day-cell {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        min-width: 0;
+        min-height: 118px;
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        border-top: 0;
+        border-left: 0;
+        background: #101215;
+        color: inherit;
+        padding: 10px;
+        text-align: left;
+        appearance: none;
+      }
+
+      .day-cell:nth-child(7n) {
+        border-right: 0;
+      }
+
+      .day-cell.outside {
+        background: #0c0e11;
+        color: var(--faint);
+      }
+
+      .day-cell.is-selected {
+        box-shadow: inset 0 0 0 1px rgba(85, 199, 166, 0.68);
+      }
+
+      .day-number {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .today-tag {
+        border: 1px solid rgba(255, 209, 102, 0.56);
+        border-radius: 999px;
+        color: var(--amber);
+        padding: 1px 6px 2px;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .event-stack {
+        display: grid;
+        gap: 5px;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .event-pill {
+        overflow: hidden;
+        border: 1px solid var(--event-border, rgba(122, 167, 255, 0.24));
+        border-left: 3px solid var(--event-color, var(--accent-2));
+        border-radius: 6px;
+        background: var(--event-bg, rgba(122, 167, 255, 0.1));
+        color: var(--text);
+        padding: 5px 7px;
+        text-align: left;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 12px;
+      }
+
+      .event-pill.done {
+        color: var(--faint);
+        text-decoration: line-through;
+      }
+
+      .color-dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--event-color, var(--accent-2));
+      }
+
+      .agenda-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .agenda-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+
+      .agenda-list {
+        display: grid;
+        align-content: start;
+        gap: 10px;
+        overflow: auto;
+        scrollbar-gutter: stable;
+        padding: 14px;
+      }
+
+      .agenda-item {
+        display: grid;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #101215;
+        padding: 12px;
+      }
+
+      .agenda-item.done {
+        border-color: rgba(85, 199, 166, 0.28);
+        background: rgba(85, 199, 166, 0.06);
+      }
+
+      .agenda-item.done h3 {
+        color: var(--faint);
+        text-decoration: line-through;
+      }
+
+      .agenda-item header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .agenda-item h3 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .agenda-item time,
+      .agenda-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .item-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .complete-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        width: fit-content;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--panel-2);
+        color: var(--muted);
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .complete-button.done {
+        border-color: rgba(85, 199, 166, 0.55);
+        color: var(--accent);
+        background: rgba(85, 199, 166, 0.1);
+      }
+
+      .small-button {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--panel-2);
+        color: var(--text);
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 220px;
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        color: var(--faint);
+        text-align: center;
+        padding: 22px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        max-width: min(360px, calc(100vw - 36px));
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        background: #161a20;
+        box-shadow: var(--shadow);
+        color: var(--text);
+        padding: 12px 14px;
+        transform: translateY(24px);
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.18s ease;
+      }
+
+      .toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      @media (max-width: 980px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .content-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .calendar-grid {
+          min-height: auto;
+        }
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding: 14px;
+        }
+
+        .topbar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .top-actions {
+          justify-content: stretch;
+        }
+
+        .top-actions > * {
+          flex: 1;
+        }
+
+        .date-heading h2 {
+          font-size: 23px;
+        }
+
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+
+        .calendar-header div {
+          padding: 9px 2px;
+        }
+
+        .day-cell {
+          min-height: 88px;
+          padding: 7px;
+        }
+
+        .event-pill {
+          padding: 4px 5px;
+          font-size: 11px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <main>
+        <header class="topbar">
+          <div class="date-heading">
+            <p id="todayLabel"></p>
+            <h2 id="mainMonthLabel"></h2>
+          </div>
+          <div class="top-actions">
+            <button class="secondary-button" id="prevMonth" type="button">
+              上個月
+            </button>
+            <button class="secondary-button" id="nextMonth" type="button">
+              下個月
+            </button>
+            <button class="secondary-button" id="todayButton" type="button">
+              今天
+            </button>
+            <button class="secondary-button" id="notifyButton" type="button">
+              開啟通知
+            </button>
+          </div>
+        </header>
+
+        <section class="content-grid">
+          <section class="calendar-panel" aria-label="月份行事曆">
+            <div class="calendar-header">
+              <div>日</div>
+              <div>一</div>
+              <div>二</div>
+              <div>三</div>
+              <div>四</div>
+              <div>五</div>
+              <div>六</div>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </section>
+
+          <section class="agenda-panel" aria-label="當日事件">
+            <div class="agenda-head">
+              <h2 id="agendaTitle"></h2>
+              <span id="agendaCount"></span>
+            </div>
+            <div class="agenda-list" id="agendaList"></div>
+            <button
+              class="primary-button add-event-button"
+              id="addEventButton"
+              type="button"
+              hidden
+            >
+              新增事件
+            </button>
+            <form class="event-form" id="eventForm">
+              <h2 id="formTitle">新增事件</h2>
+              <input type="hidden" id="eventId" />
+              <label>
+                標題
+                <input id="titleInput" autocomplete="off" required />
+              </label>
+              <div class="form-row">
+                <label>
+                  日期
+                  <input id="dateInput" type="date" required />
+                </label>
+                <label>
+                  時間
+                  <input id="timeInput" type="time" />
+                </label>
+              </div>
+              <div class="field">
+                <span>顏色</span>
+                <div class="color-options" id="colorOptions">
+                  <label class="color-option" style="--swatch: #7aa7ff" title="藍色">
+                    <input type="radio" name="eventColor" value="#7aa7ff" checked />
+                    <span></span>
+                  </label>
+                  <label class="color-option" style="--swatch: #55c7a6" title="綠色">
+                    <input type="radio" name="eventColor" value="#55c7a6" />
+                    <span></span>
+                  </label>
+                  <label class="color-option" style="--swatch: #ffd166" title="黃色">
+                    <input type="radio" name="eventColor" value="#ffd166" />
+                    <span></span>
+                  </label>
+                  <label class="color-option" style="--swatch: #ff7a7a" title="紅色">
+                    <input type="radio" name="eventColor" value="#ff7a7a" />
+                    <span></span>
+                  </label>
+                  <label class="color-option" style="--swatch: #b197fc" title="紫色">
+                    <input type="radio" name="eventColor" value="#b197fc" />
+                    <span></span>
+                  </label>
+                </div>
+              </div>
+              <label>
+                提醒
+                <select id="reminderInput">
+                  <option value="0">準時提醒</option>
+                  <option value="5">提前 5 分鐘</option>
+                  <option value="15" selected>提前 15 分鐘</option>
+                  <option value="30">提前 30 分鐘</option>
+                  <option value="60">提前 1 小時</option>
+                  <option value="-1">不提醒</option>
+                </select>
+              </label>
+              <label>
+                備註
+                <textarea id="noteInput"></textarea>
+              </label>
+              <button class="primary-button" type="submit">儲存</button>
+              <button class="secondary-button" id="cancelEdit" type="button" hidden>
+                取消編輯
+              </button>
+            </form>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const STORAGE_KEY = "han-burger-calendar-events-v1";
+      const notifiedIds = new Set();
+      const state = {
+        cursor: startOfMonth(new Date()),
+        selected: toDateKey(new Date()),
+        events: loadEvents(),
+        formOpen: false,
+      };
+
+      const els = {
+        mainMonthLabel: document.querySelector("#mainMonthLabel"),
+        todayLabel: document.querySelector("#todayLabel"),
+        calendarGrid: document.querySelector("#calendarGrid"),
+        agendaTitle: document.querySelector("#agendaTitle"),
+        agendaCount: document.querySelector("#agendaCount"),
+        agendaList: document.querySelector("#agendaList"),
+        addEventButton: document.querySelector("#addEventButton"),
+        eventForm: document.querySelector("#eventForm"),
+        formTitle: document.querySelector("#formTitle"),
+        eventId: document.querySelector("#eventId"),
+        titleInput: document.querySelector("#titleInput"),
+        dateInput: document.querySelector("#dateInput"),
+        timeInput: document.querySelector("#timeInput"),
+        colorInputs: document.querySelectorAll('input[name="eventColor"]'),
+        reminderInput: document.querySelector("#reminderInput"),
+        noteInput: document.querySelector("#noteInput"),
+        cancelEdit: document.querySelector("#cancelEdit"),
+        toast: document.querySelector("#toast"),
+      };
+
+      document.querySelector("#prevMonth").addEventListener("click", () => {
+        shiftMonth(-1);
+      });
+      document.querySelector("#nextMonth").addEventListener("click", () => {
+        shiftMonth(1);
+      });
+      document.querySelector("#todayButton").addEventListener("click", () => {
+        const today = new Date();
+        state.cursor = startOfMonth(today);
+        state.selected = toDateKey(today);
+        state.formOpen = false;
+        resetFormDate();
+        render();
+      });
+      document.querySelector("#notifyButton").addEventListener("click", async () => {
+        if (!("Notification" in window)) {
+          showToast("這個環境不支援系統通知。");
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        showToast(permission === "granted" ? "通知已開啟。" : "尚未允許通知。");
+      });
+
+      els.eventForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const title = els.titleInput.value.trim();
+        if (!title) return;
+
+        const existingId = els.eventId.value;
+        const record = {
+          id: existingId || crypto.randomUUID(),
+          title,
+          date: els.dateInput.value,
+          time: els.timeInput.value,
+          color: selectedColor(),
+          reminderMinutes: Number(els.reminderInput.value),
+          note: els.noteInput.value.trim(),
+          done: existingId
+            ? Boolean(state.events.find((item) => item.id === existingId)?.done)
+            : false,
+          createdAt: existingId
+            ? state.events.find((item) => item.id === existingId)?.createdAt
+            : new Date().toISOString(),
+        };
+
+        state.events = existingId
+          ? state.events.map((item) => (item.id === existingId ? record : item))
+          : [...state.events, record];
+        state.selected = record.date;
+        state.cursor = startOfMonth(parseDateKey(record.date));
+        saveEvents();
+        clearForm();
+        state.formOpen = false;
+        render();
+        showToast(existingId ? "已更新事件。" : "已新增事件。");
+      });
+
+      els.cancelEdit.addEventListener("click", () => {
+        clearForm();
+        state.formOpen = false;
+        renderAgenda();
+      });
+
+      els.addEventButton.addEventListener("click", () => {
+        clearForm();
+        state.formOpen = true;
+        renderAgenda();
+        els.titleInput.focus();
+      });
+
+      function render() {
+        const today = new Date();
+        els.todayLabel.textContent = `今天 ${formatDateLong(today)}`;
+        els.mainMonthLabel.textContent = formatMonth(state.cursor);
+        renderMonthGrid();
+        renderAgenda();
+      }
+
+      function renderMonthGrid() {
+        els.calendarGrid.innerHTML = "";
+        const todayKey = toDateKey(new Date());
+
+        for (const date of getCalendarDates(parseDateKey(state.selected))) {
+          const key = toDateKey(date);
+          const dayEvents = eventsForDate(key);
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = [
+            "day-cell",
+            date.getMonth() === state.cursor.getMonth() ? "" : "outside",
+            key === todayKey ? "is-today" : "",
+            key === state.selected ? "is-selected" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          cell.addEventListener("click", () => selectDate(date));
+
+          const number = document.createElement("div");
+          number.className = "day-number";
+          number.innerHTML = `<span>${date.getDate()}</span><span>${
+            key === todayKey ? '<span class="today-tag">今天</span>' : dayEvents.length || ""
+          }</span>`;
+          cell.append(number);
+
+          const stack = document.createElement("div");
+          stack.className = "event-stack";
+          dayEvents.slice(0, 3).forEach((item) => {
+            const pill = document.createElement("div");
+            pill.className = `event-pill ${item.done ? "done" : ""}`;
+            applyEventColor(pill, item.color);
+            pill.textContent = `${eventTimeLabel(item)} ${item.title}`;
+            stack.append(pill);
+          });
+          if (dayEvents.length > 3) {
+            const more = document.createElement("div");
+            more.className = "event-pill";
+            more.textContent = `還有 ${dayEvents.length - 3} 項`;
+            stack.append(more);
+          }
+          cell.append(stack);
+          els.calendarGrid.append(cell);
+        }
+      }
+
+      function renderAgenda() {
+        const selectedDate = parseDateKey(state.selected);
+        const events = eventsForDate(state.selected);
+        els.agendaTitle.textContent = formatDateLong(selectedDate);
+        els.agendaCount.textContent = `${events.length} 項`;
+        els.agendaList.innerHTML = "";
+        updateFormVisibility(events.length);
+
+        if (!events.length) {
+          els.agendaList.innerHTML =
+            '<div class="empty-state">這天沒有事件。</div>';
+          return;
+        }
+
+        for (const item of events) {
+          const article = document.createElement("article");
+          article.className = `agenda-item ${item.done ? "done" : ""}`;
+          applyEventColor(article, item.color);
+          article.innerHTML = `
+            <header>
+              <div>
+                <h3>${escapeHtml(item.title)}</h3>
+                <time><span class="color-dot"></span> ${eventTimeLabel(item)} · ${reminderLabel(item)}</time>
+              </div>
+              <div class="item-actions">
+                <button class="small-button" type="button" title="編輯" data-edit="${item.id}">✎</button>
+                <button class="small-button" type="button" title="刪除" data-delete="${item.id}">×</button>
+              </div>
+            </header>
+            <button class="complete-button ${item.done ? "done" : ""}" type="button" data-toggle-done="${item.id}">
+              ${item.done ? "✓ 已完成" : "○ 標示完成"}
+            </button>
+            ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
+          `;
+          els.agendaList.append(article);
+        }
+
+        els.agendaList.querySelectorAll("[data-toggle-done]").forEach((button) => {
+          button.addEventListener("click", () => toggleDone(button.dataset.toggleDone));
+        });
+        els.agendaList.querySelectorAll("[data-edit]").forEach((button) => {
+          button.addEventListener("click", () => editEvent(button.dataset.edit));
+        });
+        els.agendaList.querySelectorAll("[data-delete]").forEach((button) => {
+          button.addEventListener("click", () => deleteEvent(button.dataset.delete));
+        });
+      }
+
+      function updateFormVisibility(eventCount) {
+        const isEditing = Boolean(els.eventId.value);
+        const shouldShowForm = eventCount === 0 || state.formOpen || isEditing;
+        els.eventForm.hidden = !shouldShowForm;
+        els.addEventButton.hidden = shouldShowForm;
+      }
+
+      function shiftMonth(amount) {
+        const selected = parseDateKey(state.selected);
+        const targetYear = selected.getFullYear();
+        const targetMonth = selected.getMonth() + amount;
+        const targetDay = selected.getDate();
+        const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const shifted = new Date(
+          targetYear,
+          targetMonth,
+          Math.min(targetDay, maxDay)
+        );
+        state.selected = toDateKey(shifted);
+        state.cursor = startOfMonth(shifted);
+        state.formOpen = false;
+        resetFormDate();
+        render();
+      }
+
+      function selectDate(date) {
+        state.selected = toDateKey(date);
+        state.cursor = startOfMonth(date);
+        state.formOpen = false;
+        resetFormDate();
+        render();
+      }
+
+      function editEvent(id) {
+        const item = state.events.find((event) => event.id === id);
+        if (!item) return;
+        state.formOpen = true;
+        els.eventForm.hidden = false;
+        els.addEventButton.hidden = true;
+        els.formTitle.textContent = "編輯事件";
+        els.eventId.value = item.id;
+        els.titleInput.value = item.title;
+        els.dateInput.value = item.date;
+        els.timeInput.value = item.time || "";
+        setSelectedColor(item.color || "#7aa7ff");
+        els.reminderInput.value = String(item.reminderMinutes);
+        els.noteInput.value = item.note || "";
+        els.cancelEdit.hidden = false;
+        els.titleInput.focus();
+      }
+
+      function deleteEvent(id) {
+        state.events = state.events.filter((item) => item.id !== id);
+        saveEvents();
+        clearForm();
+        render();
+        showToast("已刪除事件。");
+      }
+
+      function toggleDone(id) {
+        let isDone = false;
+        state.events = state.events.map((item) => {
+          if (item.id !== id) return item;
+          isDone = !item.done;
+          return { ...item, done: isDone };
+        });
+        saveEvents();
+        render();
+        showToast(isDone ? "已標示完成。" : "已取消完成。");
+      }
+
+      function clearForm() {
+        els.formTitle.textContent = "新增事件";
+        els.eventId.value = "";
+        els.titleInput.value = "";
+        setSelectedColor("#7aa7ff");
+        els.reminderInput.value = "15";
+        els.noteInput.value = "";
+        els.cancelEdit.hidden = true;
+        resetFormDate();
+      }
+
+      function resetFormDate() {
+        els.dateInput.value = state.selected;
+        els.timeInput.value = "";
+      }
+
+      function eventsForDate(dateKey) {
+        return state.events
+          .filter((event) => event.date === dateKey)
+          .sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+      }
+
+      function eventSortKey(item) {
+        return `${item.time || "00:00"}-${item.createdAt || ""}`;
+      }
+
+      function checkReminders() {
+        const now = Date.now();
+        for (const item of state.events) {
+          if (
+            item.done ||
+            !item.time ||
+            item.reminderMinutes < 0 ||
+            notifiedIds.has(item.id)
+          )
+            continue;
+          const eventTime = new Date(`${item.date}T${item.time}:00`).getTime();
+          const notifyAt = eventTime - item.reminderMinutes * 60000;
+          if (now >= notifyAt && now <= eventTime + 60000) {
+            notifiedIds.add(item.id);
+            notify(item);
+          }
+        }
+      }
+
+      function notify(item) {
+        const body = `${item.date} ${item.time}${item.note ? " · " + item.note : ""}`;
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(item.title, { body });
+        }
+        showToast(`${item.title} · ${item.time}`);
+      }
+
+      function showToast(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("show");
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => {
+          els.toast.classList.remove("show");
+        }, 2600);
+      }
+
+      function getCalendarDates(anchorDate) {
+        const start = new Date(anchorDate);
+        start.setDate(anchorDate.getDate() - anchorDate.getDay() - 7);
+        return Array.from({ length: 35 }, (_, index) => {
+          const date = new Date(start);
+          date.setDate(start.getDate() + index);
+          return date;
+        });
+      }
+
+      function loadEvents() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveEvents() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.events));
+      }
+
+      function startOfMonth(date) {
+        return new Date(date.getFullYear(), date.getMonth(), 1);
+      }
+
+      function toDateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function parseDateKey(key) {
+        const [year, month, day] = key.split("-").map(Number);
+        return new Date(year, month - 1, day);
+      }
+
+      function formatMonth(date) {
+        return new Intl.DateTimeFormat("zh-Hant-TW", {
+          year: "numeric",
+          month: "long",
+        }).format(date);
+      }
+
+      function formatDateLong(date) {
+        return new Intl.DateTimeFormat("zh-Hant-TW", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          weekday: "short",
+        }).format(date);
+      }
+
+      function eventTimeLabel(item) {
+        return item.time || "整天";
+      }
+
+      function selectedColor() {
+        return (
+          Array.from(els.colorInputs).find((input) => input.checked)?.value ||
+          "#7aa7ff"
+        );
+      }
+
+      function setSelectedColor(color) {
+        const safeColor = /^#[0-9a-f]{6}$/i.test(color || "")
+          ? color
+          : "#7aa7ff";
+        els.colorInputs.forEach((input) => {
+          input.checked = input.value === safeColor;
+        });
+      }
+
+      function reminderLabel(item) {
+        if (!item.time) return "整天";
+        const minutes = item.reminderMinutes;
+        if (minutes < 0) return "不提醒";
+        if (minutes === 0) return "準時提醒";
+        if (minutes < 60) return `提前 ${minutes} 分鐘`;
+        return `提前 ${minutes / 60} 小時`;
+      }
+
+      function applyEventColor(element, color) {
+        const safeColor = /^#[0-9a-f]{6}$/i.test(color || "")
+          ? color
+          : "#7aa7ff";
+        element.style.setProperty("--event-color", safeColor);
+        element.style.setProperty("--event-border", `${hexToRgb(safeColor, 0.34)}`);
+        element.style.setProperty("--event-bg", `${hexToRgb(safeColor, 0.12)}`);
+      }
+
+      function hexToRgb(hex, alpha) {
+        const value = hex.replace("#", "");
+        const red = parseInt(value.slice(0, 2), 16);
+        const green = parseInt(value.slice(2, 4), 16);
+        const blue = parseInt(value.slice(4, 6), 16);
+        return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+      }
+
+      function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (char) => {
+          return {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;",
+          }[char];
+        });
+      }
+
+      resetFormDate();
+      render();
+      setInterval(checkReminders, 15000);
+      checkReminders();
+    </script>
+  </body>
+</html>
