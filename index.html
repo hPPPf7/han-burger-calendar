@@ -557,6 +557,12 @@
             <button class="secondary-button" id="todayButton" type="button">
               今天
             </button>
+            <button class="secondary-button" id="downloadButton" type="button">
+              下載
+            </button>
+            <button class="secondary-button" id="uploadButton" type="button">
+              上傳
+            </button>
             <button class="secondary-button" id="notifyButton" type="button">
               開啟通知
             </button>
@@ -674,6 +680,17 @@
 
       window.addEventListener("message", (event) => {
         const message = event.data || {};
+        if (message.source === "han-burger-desktop-control" && message.type === "calendar:uploadBeforeClose") {
+          uploadEvents().finally(() => {
+            event.source.postMessage({
+              source: "han-burger-calendar-control",
+              requestId: message.requestId,
+              ok: true
+            }, "*");
+          });
+          return;
+        }
+
         if (message.source !== "han-burger-desktop" || !message.requestId) {
           return;
         }
@@ -689,6 +706,12 @@
         } else {
           request.reject(new Error(message.error || "Desktop sync failed."));
         }
+      });
+
+      window.addEventListener("pagehide", () => {
+        requestDesktop("calendar:uploadEvents", {
+          events: state.events
+        }).catch(() => {});
       });
 
       const els = {
@@ -709,6 +732,8 @@
         reminderInput: document.querySelector("#reminderInput"),
         noteInput: document.querySelector("#noteInput"),
         cancelEdit: document.querySelector("#cancelEdit"),
+        downloadButton: document.querySelector("#downloadButton"),
+        uploadButton: document.querySelector("#uploadButton"),
         toast: document.querySelector("#toast"),
       };
 
@@ -735,7 +760,15 @@
         showToast(permission === "granted" ? "通知已開啟。" : "尚未允許通知。");
       });
 
-      els.eventForm.addEventListener("submit", async (event) => {
+      els.downloadButton.addEventListener("click", async () => {
+        await downloadEvents();
+      });
+
+      els.uploadButton.addEventListener("click", async () => {
+        await uploadEvents();
+      });
+
+      els.eventForm.addEventListener("submit", (event) => {
         event.preventDefault();
         const title = els.titleInput.value.trim();
         if (!title) return;
@@ -766,7 +799,7 @@
           : [...state.events, record];
         state.selected = record.date;
         state.cursor = startOfMonth(parseDateKey(record.date));
-        await saveEvents();
+        saveEvents();
         clearForm();
         state.formOpen = false;
         render();
@@ -1046,7 +1079,7 @@
 
       function saveEvents() {
         saveLocalEvents();
-        return syncEventsToDesktop();
+        saveEventsToDesktop();
       }
 
       function saveLocalEvents() {
@@ -1103,7 +1136,7 @@
         }
       }
 
-      async function syncEventsToDesktop() {
+      async function saveEventsToDesktop() {
         try {
           const payload = await requestDesktop("calendar:saveEvents", {
             events: state.events
@@ -1120,6 +1153,46 @@
             ok: true,
             message: "已儲存到本機瀏覽器"
           };
+        }
+      }
+
+      async function downloadEvents() {
+        els.downloadButton.disabled = true;
+        showToast("正在下載同步資料...");
+        try {
+          const payload = await requestDesktop("calendar:downloadEvents");
+          if (Array.isArray(payload?.events)) {
+            state.events = payload.events;
+            saveLocalEvents();
+            state.sync = payload.sync || null;
+            render();
+          }
+          showToast(payload?.sync?.ok ? "已下載同步資料。" : `下載失敗：${payload?.sync?.message || "未知錯誤"}`);
+        } catch (error) {
+          showToast(`下載失敗：${error.message}`);
+        } finally {
+          els.downloadButton.disabled = false;
+        }
+      }
+
+      async function uploadEvents() {
+        els.uploadButton.disabled = true;
+        showToast("正在上傳同步資料...");
+        try {
+          const payload = await requestDesktop("calendar:uploadEvents", {
+            events: state.events
+          });
+          if (Array.isArray(payload?.events)) {
+            state.events = payload.events;
+            saveLocalEvents();
+            state.sync = payload.sync || null;
+            render();
+          }
+          showToast(payload?.sync?.ok ? "已上傳同步資料。" : `上傳失敗：${payload?.sync?.message || "未知錯誤"}`);
+        } catch (error) {
+          showToast(`上傳失敗：${error.message}`);
+        } finally {
+          els.uploadButton.disabled = false;
         }
       }
 

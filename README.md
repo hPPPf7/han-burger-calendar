@@ -8,7 +8,7 @@
 - 新增、編輯、刪除提醒
 - 當日行程清單
 - 使用 `localStorage` 儲存在這台裝置
-- 在 Han Burger Desktop 內可透過 Google Drive App Data Folder 同步事件資料
+- 在 Han Burger Desktop 內可透過 Google Drive App Data Folder 同步事件資料，並提供手動上傳與下載
 - 使用者允許通知後，可透過瀏覽器或桌面殼層發送提醒
 - 支援桌面與手機瀏覽器版面
 
