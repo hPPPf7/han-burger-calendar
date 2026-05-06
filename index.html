@@ -185,6 +185,21 @@
         margin: 14px;
       }
 
+      .form-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 8px;
+      }
+
+      .form-actions .primary-button {
+        min-height: 46px;
+        font-size: 15px;
+      }
+
+      .form-actions .secondary-button[hidden] + .primary-button {
+        grid-column: 1 / -1;
+      }
+
       main {
         display: grid;
         grid-template-rows: auto 1fr;
@@ -225,6 +240,34 @@
         gap: 8px;
         flex-wrap: wrap;
         justify-content: flex-end;
+      }
+
+      .icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 42px;
+        min-height: 40px;
+        padding: 8px 10px;
+      }
+
+      .icon-button svg {
+        width: 20px;
+        height: 20px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
       }
 
       .content-grid {
@@ -567,17 +610,27 @@
             <button class="secondary-button" id="prevMonth" type="button">
               上個月
             </button>
-            <button class="secondary-button" id="nextMonth" type="button">
-              下個月
-            </button>
             <button class="secondary-button" id="todayButton" type="button">
               今天
             </button>
-            <button class="secondary-button" id="downloadButton" type="button">
-              下載
+            <button class="secondary-button" id="nextMonth" type="button">
+              下個月
             </button>
-            <button class="secondary-button" id="uploadButton" type="button">
-              上傳
+            <button class="secondary-button icon-button" id="uploadButton" type="button" title="上傳" aria-label="上傳">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M17.5 18a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.4-1.8A4.8 4.8 0 0 0 7 18" />
+                <path d="M12 17V10" />
+                <path d="m8.5 13.5 3.5-3.5 3.5 3.5" />
+              </svg>
+              <span class="sr-only">上傳</span>
+            </button>
+            <button class="secondary-button icon-button" id="downloadButton" type="button" title="下載" aria-label="下載">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M17.5 18a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.4-1.8A4.8 4.8 0 0 0 7 18" />
+                <path d="M12 10v7" />
+                <path d="m8.5 13.5 3.5 3.5 3.5-3.5" />
+              </svg>
+              <span class="sr-only">下載</span>
             </button>
             <button class="secondary-button" id="notifyButton" type="button">
               開啟通知
@@ -674,10 +727,12 @@
                 備註
                 <textarea id="noteInput"></textarea>
               </label>
-              <button class="primary-button" type="submit">儲存</button>
-              <button class="secondary-button" id="cancelEdit" type="button" hidden>
-                取消
-              </button>
+              <div class="form-actions">
+                <button class="secondary-button" id="cancelEdit" type="button" hidden>
+                  取消
+                </button>
+                <button class="primary-button" type="submit">儲存</button>
+              </div>
             </form>
           </section>
         </section>
