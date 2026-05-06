@@ -38,7 +38,7 @@
       }
 
       html {
-        overflow-y: scroll;
+        overflow-y: auto;
         scrollbar-gutter: stable;
       }
 
@@ -59,7 +59,8 @@
 
       .app-shell {
         display: grid;
-        min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
       }
 
       .agenda-panel,
@@ -187,8 +188,9 @@
         grid-template-rows: auto 1fr;
         gap: 18px;
         min-width: 0;
-        min-height: 100vh;
+        min-height: 0;
         padding: 22px;
+        overflow: hidden;
       }
 
       .topbar {
@@ -257,7 +259,7 @@
         display: grid;
         grid-template-columns: repeat(7, minmax(0, 1fr));
         grid-template-rows: repeat(5, minmax(0, 1fr));
-        min-height: 540px;
+        min-height: 0;
       }
 
       .day-cell {
@@ -490,10 +492,11 @@
 
         .content-grid {
           grid-template-columns: 1fr;
+          overflow: auto;
         }
 
         .calendar-grid {
-          min-height: auto;
+          min-height: 540px;
         }
       }
 
