@@ -777,7 +777,7 @@
         const existingEvent = state.events.find((item) => item.id === existingId);
         const now = new Date().toISOString();
         const record = {
-          id: existingId || crypto.randomUUID(),
+          id: existingId || createId(),
           title,
           date: els.dateInput.value,
           time: els.timeInput.value,
@@ -1095,7 +1095,7 @@
           return Promise.reject(new Error("Desktop bridge is not available."));
         }
 
-        const requestId = crypto.randomUUID();
+        const requestId = createId();
         const request = new Promise((resolve, reject) => {
           bridgeRequests.set(requestId, { resolve, reject });
           setTimeout(() => {
@@ -1230,6 +1230,15 @@
 
       function eventTimeLabel(item) {
         return item.time || "整天";
+      }
+
+      function createId() {
+        if (window.crypto?.randomUUID) {
+          return window.crypto.randomUUID();
+        }
+
+        const randomPart = Math.random().toString(36).slice(2, 10);
+        return `event-${Date.now().toString(36)}-${randomPart}`;
       }
 
       function selectedColor() {
