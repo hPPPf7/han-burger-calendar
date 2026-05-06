@@ -675,6 +675,7 @@
         selected: toDateKey(new Date()),
         events: loadEvents(),
         formOpen: false,
+        hasLocalChanges: false,
         sync: null,
       };
 
@@ -770,40 +771,44 @@
 
       els.eventForm.addEventListener("submit", (event) => {
         event.preventDefault();
-        const title = els.titleInput.value.trim();
-        if (!title) return;
+        try {
+          const title = els.titleInput.value.trim();
+          if (!title) return;
 
-        const existingId = els.eventId.value;
-        const existingEvent = state.events.find((item) => item.id === existingId);
-        const now = new Date().toISOString();
-        const record = {
-          id: existingId || createId(),
-          title,
-          date: els.dateInput.value,
-          time: els.timeInput.value,
-          color: selectedColor(),
-          reminderMinutes: Number(els.reminderInput.value),
-          note: els.noteInput.value.trim(),
-          done: existingId
-            ? Boolean(existingEvent?.done)
-            : false,
-          createdAt: existingId
-            ? existingEvent?.createdAt
-            : now,
-          updatedAt: now,
-          deletedAt: null,
-        };
+          const existingId = els.eventId.value;
+          const existingEvent = state.events.find((item) => item.id === existingId);
+          const now = new Date().toISOString();
+          const record = {
+            id: existingId || createId(),
+            title,
+            date: els.dateInput.value,
+            time: els.timeInput.value,
+            color: selectedColor(),
+            reminderMinutes: Number(els.reminderInput.value),
+            note: els.noteInput.value.trim(),
+            done: existingId
+              ? Boolean(existingEvent?.done)
+              : false,
+            createdAt: existingId
+              ? existingEvent?.createdAt
+              : now,
+            updatedAt: now,
+            deletedAt: null,
+          };
 
-        state.events = existingId
-          ? state.events.map((item) => (item.id === existingId ? record : item))
-          : [...state.events, record];
-        state.selected = record.date;
-        state.cursor = startOfMonth(parseDateKey(record.date));
-        saveEvents();
-        clearForm();
-        state.formOpen = false;
-        render();
-        showToast(existingId ? "已更新事件。" : "已新增事件。");
+          state.events = existingId
+            ? state.events.map((item) => (item.id === existingId ? record : item))
+            : [...state.events, record];
+          state.selected = record.date;
+          state.cursor = startOfMonth(parseDateKey(record.date));
+          saveEvents();
+          clearForm();
+          state.formOpen = false;
+          render();
+          showToast(existingId ? "已更新事件。" : "已新增事件。");
+        } catch (error) {
+          showToast(`新增事件失敗：${error.message}`);
+        }
       });
 
       els.cancelEdit.addEventListener("click", () => {
@@ -1078,6 +1083,7 @@
       }
 
       function saveEvents() {
+        state.hasLocalChanges = true;
         saveLocalEvents();
         saveEventsToDesktop();
       }
@@ -1119,6 +1125,9 @@
         try {
           const payload = await requestDesktop("calendar:getEvents");
           if (Array.isArray(payload?.events)) {
+            if (state.hasLocalChanges) {
+              return;
+            }
             state.events = payload.events;
             saveLocalEvents();
             state.sync = payload.sync || null;
@@ -1143,6 +1152,7 @@
           });
           if (Array.isArray(payload?.events)) {
             state.events = payload.events;
+            state.hasLocalChanges = false;
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
@@ -1163,6 +1173,7 @@
           const payload = await requestDesktop("calendar:downloadEvents");
           if (Array.isArray(payload?.events)) {
             state.events = payload.events;
+            state.hasLocalChanges = false;
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
