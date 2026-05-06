@@ -378,7 +378,7 @@
 
       .agenda-item {
         display: grid;
-        gap: 8px;
+        gap: 6px;
         border: 1px solid var(--border);
         border-radius: 8px;
         background: #101215;
@@ -415,6 +415,10 @@
         color: var(--muted);
         font-size: 12px;
         line-height: 1.45;
+      }
+
+      .agenda-item p {
+        margin-top: 4px;
       }
 
       .item-actions {
@@ -474,7 +478,7 @@
 
       .toast {
         position: fixed;
-        right: 18px;
+        left: 50%;
         top: 18px;
         max-width: min(360px, calc(100vw - 36px));
         border: 1px solid var(--border-strong);
@@ -483,14 +487,14 @@
         box-shadow: var(--shadow);
         color: var(--text);
         padding: 12px 14px;
-        transform: translateY(-18px);
+        transform: translate(-50%, -18px);
         opacity: 0;
         pointer-events: none;
         transition: 0.18s ease;
       }
 
       .toast.show {
-        transform: translateY(0);
+        transform: translate(-50%, 0);
         opacity: 1;
       }
 
@@ -672,7 +676,7 @@
               </label>
               <button class="primary-button" type="submit">儲存</button>
               <button class="secondary-button" id="cancelEdit" type="button" hidden>
-                取消編輯
+                取消
               </button>
             </form>
           </section>
@@ -922,6 +926,7 @@
               <div>
                 <h3>${escapeHtml(item.title)}</h3>
                 <time><span class="color-dot"></span> ${eventMetaLabel(item)}</time>
+                ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
               </div>
               <div class="agenda-actions-column">
                 <div class="item-actions">
@@ -933,7 +938,6 @@
                 </button>
               </div>
             </header>
-            ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
           `;
           els.agendaList.append(article);
         }
@@ -954,6 +958,7 @@
         const shouldShowForm = eventCount === 0 || state.formOpen || isEditing;
         els.eventForm.hidden = !shouldShowForm;
         els.addEventButton.hidden = shouldShowForm;
+        els.cancelEdit.hidden = !(state.formOpen || isEditing);
       }
 
       function shiftMonth(amount) {
