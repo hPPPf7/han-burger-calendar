@@ -663,12 +663,33 @@
     <script>
       const STORAGE_KEY = "han-burger-calendar-events-v1";
       const notifiedIds = new Set();
+      const bridgeRequests = new Map();
       const state = {
         cursor: startOfMonth(new Date()),
         selected: toDateKey(new Date()),
         events: loadEvents(),
         formOpen: false,
+        sync: null,
       };
+
+      window.addEventListener("message", (event) => {
+        const message = event.data || {};
+        if (message.source !== "han-burger-desktop" || !message.requestId) {
+          return;
+        }
+
+        const request = bridgeRequests.get(message.requestId);
+        if (!request) {
+          return;
+        }
+
+        bridgeRequests.delete(message.requestId);
+        if (message.ok) {
+          request.resolve(message.payload);
+        } else {
+          request.reject(new Error(message.error || "Desktop sync failed."));
+        }
+      });
 
       const els = {
         mainMonthLabel: document.querySelector("#mainMonthLabel"),
@@ -714,12 +735,14 @@
         showToast(permission === "granted" ? "通知已開啟。" : "尚未允許通知。");
       });
 
-      els.eventForm.addEventListener("submit", (event) => {
+      els.eventForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const title = els.titleInput.value.trim();
         if (!title) return;
 
         const existingId = els.eventId.value;
+        const existingEvent = state.events.find((item) => item.id === existingId);
+        const now = new Date().toISOString();
         const record = {
           id: existingId || crypto.randomUUID(),
           title,
@@ -729,11 +752,13 @@
           reminderMinutes: Number(els.reminderInput.value),
           note: els.noteInput.value.trim(),
           done: existingId
-            ? Boolean(state.events.find((item) => item.id === existingId)?.done)
+            ? Boolean(existingEvent?.done)
             : false,
           createdAt: existingId
-            ? state.events.find((item) => item.id === existingId)?.createdAt
-            : new Date().toISOString(),
+            ? existingEvent?.createdAt
+            : now,
+          updatedAt: now,
+          deletedAt: null,
         };
 
         state.events = existingId
@@ -741,7 +766,7 @@
           : [...state.events, record];
         state.selected = record.date;
         state.cursor = startOfMonth(parseDateKey(record.date));
-        saveEvents();
+        await saveEvents();
         clearForm();
         state.formOpen = false;
         render();
@@ -915,7 +940,10 @@
       }
 
       function deleteEvent(id) {
-        state.events = state.events.filter((item) => item.id !== id);
+        const now = new Date().toISOString();
+        state.events = state.events.map((item) =>
+          item.id === id ? { ...item, updatedAt: now, deletedAt: now } : item
+        );
         saveEvents();
         clearForm();
         render();
@@ -927,7 +955,7 @@
         state.events = state.events.map((item) => {
           if (item.id !== id) return item;
           isDone = !item.done;
-          return { ...item, done: isDone };
+          return { ...item, done: isDone, updatedAt: new Date().toISOString() };
         });
         saveEvents();
         render();
@@ -952,7 +980,7 @@
 
       function eventsForDate(dateKey) {
         return state.events
-          .filter((event) => event.date === dateKey)
+          .filter((event) => !event.deletedAt && event.date === dateKey)
           .sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
       }
 
@@ -965,6 +993,7 @@
         for (const item of state.events) {
           if (
             item.done ||
+            item.deletedAt ||
             !item.time ||
             item.reminderMinutes < 0 ||
             notifiedIds.has(item.id)
@@ -1016,7 +1045,82 @@
       }
 
       function saveEvents() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.events));
+        saveLocalEvents();
+        return syncEventsToDesktop();
+      }
+
+      function saveLocalEvents() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.events));
+        } catch {
+          // Sandboxed desktop iframes may not expose localStorage.
+        }
+      }
+
+      function requestDesktop(type, payload = {}) {
+        if (window.parent === window) {
+          return Promise.reject(new Error("Desktop bridge is not available."));
+        }
+
+        const requestId = crypto.randomUUID();
+        const request = new Promise((resolve, reject) => {
+          bridgeRequests.set(requestId, { resolve, reject });
+          setTimeout(() => {
+            if (!bridgeRequests.has(requestId)) return;
+            bridgeRequests.delete(requestId);
+            reject(new Error("Desktop bridge timed out."));
+          }, 5000);
+        });
+
+        window.parent.postMessage({
+          source: "han-burger-calendar",
+          requestId,
+          type,
+          ...payload
+        }, "*");
+
+        return request;
+      }
+
+      async function loadEventsFromDesktop() {
+        try {
+          const payload = await requestDesktop("calendar:getEvents");
+          if (Array.isArray(payload?.events)) {
+            state.events = payload.events;
+            saveLocalEvents();
+            state.sync = payload.sync || null;
+            render();
+            if (state.sync?.provider === "google-drive") {
+              showToast(state.sync.ok ? "已同步 Google Drive。" : `Google Drive 同步失敗：${state.sync.message}`);
+            }
+          }
+        } catch {
+          state.sync = {
+            provider: "local",
+            ok: true,
+            message: "使用本機資料"
+          };
+        }
+      }
+
+      async function syncEventsToDesktop() {
+        try {
+          const payload = await requestDesktop("calendar:saveEvents", {
+            events: state.events
+          });
+          if (Array.isArray(payload?.events)) {
+            state.events = payload.events;
+            saveLocalEvents();
+            state.sync = payload.sync || null;
+            render();
+          }
+        } catch {
+          state.sync = {
+            provider: "local",
+            ok: true,
+            message: "已儲存到本機瀏覽器"
+          };
+        }
       }
 
       function startOfMonth(date) {
@@ -1111,6 +1215,7 @@
 
       resetFormDate();
       render();
+      loadEventsFromDesktop();
       setInterval(checkReminders, 15000);
       checkReminders();
     </script>
