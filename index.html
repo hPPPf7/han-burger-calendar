@@ -30,7 +30,9 @@
       html,
       body {
         margin: 0;
+        height: 100%;
         min-height: 100%;
+        overflow: hidden;
         background: var(--bg);
         color: var(--text);
         font-family: "Segoe UI", "Microsoft JhengHei UI", "Noto Sans TC",
@@ -258,7 +260,7 @@
       .calendar-grid {
         display: grid;
         grid-template-columns: repeat(7, minmax(0, 1fr));
-        grid-template-rows: repeat(5, minmax(0, 1fr));
+        grid-template-rows: repeat(4, minmax(0, 1fr));
         min-height: 0;
       }
 
@@ -269,7 +271,7 @@
         align-items: stretch;
         justify-content: flex-start;
         min-width: 0;
-        min-height: 118px;
+        min-height: 0;
         border-right: 1px solid var(--border);
         border-bottom: 1px solid var(--border);
         border-top: 0;
@@ -421,6 +423,13 @@
         flex-shrink: 0;
       }
 
+      .agenda-actions-column {
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
       .complete-button {
         display: inline-flex;
         align-items: center;
@@ -466,7 +475,7 @@
       .toast {
         position: fixed;
         right: 18px;
-        bottom: 18px;
+        top: 18px;
         max-width: min(360px, calc(100vw - 36px));
         border: 1px solid var(--border-strong);
         border-radius: 8px;
@@ -474,7 +483,7 @@
         box-shadow: var(--shadow);
         color: var(--text);
         padding: 12px 14px;
-        transform: translateY(24px);
+        transform: translateY(-18px);
         opacity: 0;
         pointer-events: none;
         transition: 0.18s ease;
@@ -496,7 +505,7 @@
         }
 
         .calendar-grid {
-          min-height: 540px;
+          min-height: 432px;
         }
       }
 
@@ -614,7 +623,11 @@
                 </label>
                 <label>
                   時間
-                  <input id="timeInput" type="time" />
+                  <select id="timeModeInput">
+                    <option value="all-day" selected>整天</option>
+                    <option value="time">指定時間</option>
+                  </select>
+                  <input id="timeInput" type="time" hidden />
                 </label>
               </div>
               <div class="field">
@@ -731,6 +744,7 @@
         eventId: document.querySelector("#eventId"),
         titleInput: document.querySelector("#titleInput"),
         dateInput: document.querySelector("#dateInput"),
+        timeModeInput: document.querySelector("#timeModeInput"),
         timeInput: document.querySelector("#timeInput"),
         colorInputs: document.querySelectorAll('input[name="eventColor"]'),
         reminderInput: document.querySelector("#reminderInput"),
@@ -772,6 +786,10 @@
         await uploadEvents();
       });
 
+      els.timeModeInput.addEventListener("change", () => {
+        applyTimeMode(els.timeModeInput.value);
+      });
+
       els.eventForm.addEventListener("submit", (event) => {
         event.preventDefault();
         try {
@@ -785,7 +803,7 @@
             id: existingId || createId(),
             title,
             date: els.dateInput.value,
-            time: els.timeInput.value,
+            time: els.timeModeInput.value === "time" ? els.timeInput.value : "",
             color: selectedColor(),
             reminderMinutes: Number(els.reminderInput.value),
             note: els.noteInput.value.trim(),
@@ -857,7 +875,7 @@
           const number = document.createElement("div");
           number.className = "day-number";
           number.innerHTML = `<span>${date.getDate()}</span><span>${
-            key === todayKey ? '<span class="today-tag">今天</span>' : dayEvents.length || ""
+            key === todayKey ? '<span class="today-tag">今天</span>' : ""
           }</span>`;
           cell.append(number);
 
@@ -867,7 +885,7 @@
             const pill = document.createElement("div");
             pill.className = `event-pill ${item.done ? "done" : ""}`;
             applyEventColor(pill, item.color);
-            pill.textContent = `${eventTimeLabel(item)} ${item.title}`;
+            pill.textContent = item.title;
             stack.append(pill);
           });
           if (dayEvents.length > 3) {
@@ -903,16 +921,18 @@
             <header>
               <div>
                 <h3>${escapeHtml(item.title)}</h3>
-                <time><span class="color-dot"></span> ${eventTimeLabel(item)} · ${reminderLabel(item)}</time>
+                <time><span class="color-dot"></span> ${eventMetaLabel(item)}</time>
               </div>
-              <div class="item-actions">
-                <button class="small-button" type="button" title="編輯" data-edit="${item.id}">✎</button>
-                <button class="small-button" type="button" title="刪除" data-delete="${item.id}">×</button>
+              <div class="agenda-actions-column">
+                <div class="item-actions">
+                  <button class="small-button" type="button" title="編輯" data-edit="${item.id}">✎</button>
+                  <button class="small-button" type="button" title="刪除" data-delete="${item.id}">×</button>
+                </div>
+                <button class="complete-button ${item.done ? "done" : ""}" type="button" data-toggle-done="${item.id}">
+                  ${item.done ? "已完成" : "標示完成"}
+                </button>
               </div>
             </header>
-            <button class="complete-button ${item.done ? "done" : ""}" type="button" data-toggle-done="${item.id}">
-              ${item.done ? "✓ 已完成" : "○ 標示完成"}
-            </button>
             ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ""}
           `;
           els.agendaList.append(article);
@@ -972,6 +992,7 @@
         els.eventId.value = item.id;
         els.titleInput.value = item.title;
         els.dateInput.value = item.date;
+        applyTimeMode(item.time ? "time" : "all-day");
         els.timeInput.value = item.time || "";
         setSelectedColor(item.color || "#7aa7ff");
         els.reminderInput.value = String(item.reminderMinutes);
@@ -1007,6 +1028,7 @@
         els.formTitle.textContent = "新增事件";
         els.eventId.value = "";
         els.titleInput.value = "";
+        applyTimeMode("all-day");
         setSelectedColor("#7aa7ff");
         els.reminderInput.value = "15";
         els.noteInput.value = "";
@@ -1016,7 +1038,7 @@
 
       function resetFormDate() {
         els.dateInput.value = state.selected;
-        els.timeInput.value = "";
+        applyTimeMode("all-day");
       }
 
       function eventsForDate(dateKey) {
@@ -1026,7 +1048,7 @@
       }
 
       function eventSortKey(item) {
-        return `${item.time || "00:00"}-${item.createdAt || ""}`;
+        return `${item.done ? "1" : "0"}-${item.time || "00:00"}-${item.createdAt || ""}`;
       }
 
       function checkReminders() {
@@ -1069,7 +1091,7 @@
       function getCalendarDates(anchorDate) {
         const start = new Date(anchorDate);
         start.setDate(anchorDate.getDate() - anchorDate.getDay() - 7);
-        return Array.from({ length: 35 }, (_, index) => {
+        return Array.from({ length: 28 }, (_, index) => {
           const date = new Date(start);
           date.setDate(start.getDate() + index);
           return date;
@@ -1244,6 +1266,19 @@
 
       function eventTimeLabel(item) {
         return item.time || "整天";
+      }
+
+      function eventMetaLabel(item) {
+        return item.time ? `${eventTimeLabel(item)} · ${reminderLabel(item)}` : "整天";
+      }
+
+      function applyTimeMode(mode) {
+        const isTimed = mode === "time";
+        els.timeModeInput.value = isTimed ? "time" : "all-day";
+        els.timeInput.hidden = !isTimed;
+        if (!isTimed) {
+          els.timeInput.value = "";
+        }
       }
 
       function createId() {
