@@ -72,6 +72,10 @@
         overflow-x: hidden;
       }
 
+      html[data-widget="true"] body {
+        overflow: hidden;
+      }
+
       button,
       input,
       textarea,
@@ -311,6 +315,45 @@
         gap: 18px;
         min-height: 0;
         align-items: stretch;
+      }
+
+      html[data-widget="true"] main {
+        gap: 10px;
+        padding: 10px;
+      }
+
+      html[data-widget="true"] .topbar {
+        gap: 10px;
+      }
+
+      html[data-widget="true"] .date-heading {
+        align-self: center;
+      }
+
+      html[data-widget="true"] .date-heading p,
+      html[data-widget="true"] .agenda-panel,
+      html[data-widget="true"] #uploadButton,
+      html[data-widget="true"] #downloadButton,
+      html[data-widget="true"] #notifyButton,
+      html[data-widget="true"] #widgetButton {
+        display: none;
+      }
+
+      html[data-widget="true"] .date-heading h2 {
+        font-size: 20px;
+      }
+
+      html[data-widget="true"] .top-actions {
+        flex-wrap: nowrap;
+      }
+
+      html[data-widget="true"] .content-grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      html[data-widget="true"] .calendar-panel {
+        min-height: 0;
       }
 
       .calendar-panel {
@@ -706,6 +749,9 @@
             <button class="secondary-button" id="notifyButton" type="button">
               開啟通知
             </button>
+            <button class="secondary-button" id="widgetButton" type="button">
+              桌面小工具
+            </button>
           </div>
         </header>
 
@@ -838,10 +884,16 @@
       const STORAGE_KEY = "han-burger-calendar-events-v1";
       const notifiedIds = new Set();
       const bridgeRequests = new Map();
+      const params = new URLSearchParams(window.location.search);
+      const isWidgetMode = params.get("widget") === "1";
       const REPEAT_INTERVALS = {
         hourly: 60 * 60 * 1000,
         daily: 24 * 60 * 60 * 1000,
       };
+      document.documentElement.dataset.widget = isWidgetMode ? "true" : "false";
+      if (params.get("theme")) {
+        document.documentElement.dataset.theme = params.get("theme") === "light" ? "light" : "dark";
+      }
       const state = {
         cursor: startOfMonth(new Date()),
         selected: toDateKey(new Date()),
@@ -915,6 +967,7 @@
         cancelEdit: document.querySelector("#cancelEdit"),
         downloadButton: document.querySelector("#downloadButton"),
         uploadButton: document.querySelector("#uploadButton"),
+        widgetButton: document.querySelector("#widgetButton"),
         syncOverlay: document.querySelector("#syncOverlay"),
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
         toast: document.querySelector("#toast"),
@@ -949,6 +1002,15 @@
 
       els.uploadButton.addEventListener("click", async () => {
         await uploadEvents();
+      });
+
+      els.widgetButton.addEventListener("click", async () => {
+        try {
+          await requestDesktop("calendar:openWidget");
+          showToast("已開啟桌面小工具。");
+        } catch (error) {
+          showToast(`開啟失敗：${error.message}`);
+        }
       });
 
       els.reminderRepeatInput.addEventListener("change", () => {
@@ -1301,6 +1363,24 @@
       }
 
       function requestDesktop(type, payload = {}) {
+        if (window.parent === window && window.hanBurger) {
+          if (type === "calendar:getEvents") {
+            return window.hanBurger.getCalendarEvents();
+          }
+          if (type === "calendar:saveEvents") {
+            return window.hanBurger.saveCalendarEvents(payload.events || []);
+          }
+          if (type === "calendar:downloadEvents") {
+            return window.hanBurger.downloadCalendarEvents();
+          }
+          if (type === "calendar:uploadEvents") {
+            return window.hanBurger.uploadCalendarEvents(payload.events || []);
+          }
+          if (type === "calendar:openWidget") {
+            return window.hanBurger.openCalendarWidget(document.documentElement.dataset.theme);
+          }
+        }
+
         if (window.parent === window) {
           return Promise.reject(new Error("Desktop bridge is not available."));
         }
