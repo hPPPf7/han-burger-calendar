@@ -124,6 +124,13 @@
         font-size: 12px;
       }
 
+      .field-help {
+        margin: 0;
+        color: var(--faint);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
       input,
       textarea,
       select {
@@ -152,6 +159,10 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
+      }
+
+      .reminder-row .field-help {
+        grid-column: 1 / -1;
       }
 
       .color-options {
@@ -770,18 +781,18 @@
                   </label>
                 </div>
               </div>
-              <div class="form-row">
+              <div class="form-row reminder-row">
                 <label>
                   提醒方式
                   <select id="reminderRepeatInput">
-                    <option value="once" selected>提醒一次</option>
-                    <option value="hourly">每小時提醒</option>
-                    <option value="daily">每天提醒</option>
                     <option value="none">不提醒</option>
+                    <option value="once" selected>提醒一次</option>
+                    <option value="hourly">每小時提醒，直到完成</option>
+                    <option value="daily">每天提醒，直到完成</option>
                   </select>
                 </label>
-                <label>
-                  提醒時間
+                <label id="reminderTimeField">
+                  <span id="reminderTimeLabel">提醒時間</span>
                   <select id="reminderInput">
                     <option value="0">準時提醒</option>
                     <option value="5">提前 5 分鐘</option>
@@ -796,6 +807,7 @@
                     <option value="10080">提前 1 週</option>
                   </select>
                 </label>
+                <p class="field-help" id="reminderHelp"></p>
               </div>
               <label>
                 備註
@@ -826,7 +838,6 @@
       const STORAGE_KEY = "han-burger-calendar-events-v1";
       const notifiedIds = new Set();
       const bridgeRequests = new Map();
-      const ALL_DAY_REMINDER_HOUR = 9;
       const REPEAT_INTERVALS = {
         hourly: 60 * 60 * 1000,
         daily: 24 * 60 * 60 * 1000,
@@ -896,7 +907,10 @@
         timeInput: document.querySelector("#timeInput"),
         colorInputs: document.querySelectorAll('input[name="eventColor"]'),
         reminderRepeatInput: document.querySelector("#reminderRepeatInput"),
+        reminderTimeField: document.querySelector("#reminderTimeField"),
+        reminderTimeLabel: document.querySelector("#reminderTimeLabel"),
         reminderInput: document.querySelector("#reminderInput"),
+        reminderHelp: document.querySelector("#reminderHelp"),
         noteInput: document.querySelector("#noteInput"),
         cancelEdit: document.querySelector("#cancelEdit"),
         downloadButton: document.querySelector("#downloadButton"),
@@ -939,6 +953,14 @@
 
       els.reminderRepeatInput.addEventListener("change", () => {
         applyReminderRepeat(els.reminderRepeatInput.value);
+      });
+
+      els.reminderInput.addEventListener("change", () => {
+        updateReminderHelp();
+      });
+
+      els.timeInput.addEventListener("change", () => {
+        updateReminderHelp();
       });
 
       els.eventForm.addEventListener("submit", (event) => {
@@ -1503,13 +1525,37 @@
       }
 
       function applyReminderRepeat(repeat) {
-        const isDisabled = repeat === "none";
-        els.reminderInput.disabled = isDisabled;
+        const isHidden = repeat === "none";
+        els.reminderTimeField.hidden = isHidden;
+        els.reminderInput.disabled = isHidden;
+        els.reminderTimeLabel.textContent = repeat === "once" ? "提醒時間" : "開始提醒";
+        updateReminderHelp();
       }
 
       function getEventDueTime(item) {
-        const time = item.time || `${String(ALL_DAY_REMINDER_HOUR).padStart(2, "0")}:00`;
+        const time = item.time || "00:00";
         return new Date(`${item.date}T${time}:00`).getTime();
+      }
+
+      function updateReminderHelp() {
+        const repeat = els.reminderRepeatInput.value;
+        if (repeat === "none") {
+          els.reminderHelp.textContent = "這個事件不會發出提醒。";
+          return;
+        }
+
+        const leadText = reminderTimeLabel(Number(els.reminderInput.value));
+        const baseText = els.timeInput.value
+          ? `事件時間 ${els.timeInput.value}`
+          : "整天事件以當天 00:00 作為提醒基準";
+
+        if (repeat === "once") {
+          els.reminderHelp.textContent = `會依 ${baseText}，${leadText}提醒一次。`;
+          return;
+        }
+
+        const repeatText = repeat === "hourly" ? "每小時" : "每天";
+        els.reminderHelp.textContent = `會依 ${baseText}，從${leadText}開始${repeatText}提醒，直到標示完成。過期未完成也會繼續提醒。`;
       }
 
       function getReminderKey(item, now) {
