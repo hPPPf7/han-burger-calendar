@@ -1548,14 +1548,15 @@
         const baseText = els.timeInput.value
           ? els.timeInput.value
           : "當天 00:00";
+        const startsAtText = leadText ? `${baseText} ${leadText}` : baseText;
 
         if (repeat === "once") {
-          els.reminderHelp.textContent = `在 ${baseText}${leadText}提醒一次。`;
+          els.reminderHelp.textContent = `${startsAtText}提醒一次。`;
           return;
         }
 
         const repeatText = repeat === "hourly" ? "每小時" : "每天";
-        els.reminderHelp.textContent = `從 ${baseText}${leadText}開始，${repeatText}提醒；完成後停止。`;
+        els.reminderHelp.textContent = `${startsAtText}開始，${repeatText}提醒；完成後停止。`;
       }
 
       function reminderOffsetLabel(minutes) {
