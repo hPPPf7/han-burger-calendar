@@ -145,7 +145,7 @@
       input:focus,
       textarea:focus,
       select:focus {
-        border-color: rgba(85, 199, 166, 0.72);
+        border-color: color-mix(in srgb, var(--amber) 72%, transparent);
       }
 
       .form-row {
@@ -211,7 +211,7 @@
 
       .form-actions {
         display: grid;
-        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
         gap: 8px;
       }
 
@@ -220,7 +220,7 @@
         font-size: 15px;
       }
 
-      .form-actions .secondary-button[hidden] + .primary-button {
+      .form-actions .primary-button:not(:has(+ .secondary-button:not([hidden]))) {
         grid-column: 1 / -1;
       }
 
@@ -360,7 +360,7 @@
       }
 
       .day-cell.is-selected {
-        box-shadow: inset 0 0 0 1px rgba(85, 199, 166, 0.68);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 72%, transparent);
       }
 
       .day-number {
@@ -788,10 +788,10 @@
                 <textarea id="noteInput"></textarea>
               </label>
               <div class="form-actions">
+                <button class="primary-button" type="submit">儲存</button>
                 <button class="secondary-button" id="cancelEdit" type="button" hidden>
                   取消
                 </button>
-                <button class="primary-button" type="submit">儲存</button>
               </div>
             </form>
           </section>
