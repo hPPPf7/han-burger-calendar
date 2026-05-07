@@ -740,11 +740,9 @@
                 </label>
                 <label>
                   時間
-                  <select id="timeModeInput">
-                    <option value="all-day" selected>整天</option>
-                    <option value="time">指定時間</option>
+                  <select id="timeInput">
+                    <option value="" selected>整天</option>
                   </select>
-                  <input id="timeInput" type="time" hidden />
                 </label>
               </div>
               <div class="field">
@@ -772,17 +770,33 @@
                   </label>
                 </div>
               </div>
-              <label>
-                提醒
-                <select id="reminderInput">
-                  <option value="0">準時提醒</option>
-                  <option value="5">提前 5 分鐘</option>
-                  <option value="15" selected>提前 15 分鐘</option>
-                  <option value="30">提前 30 分鐘</option>
-                  <option value="60">提前 1 小時</option>
-                  <option value="-1">不提醒</option>
-                </select>
-              </label>
+              <div class="form-row">
+                <label>
+                  提醒方式
+                  <select id="reminderRepeatInput">
+                    <option value="once" selected>提醒一次</option>
+                    <option value="hourly">每小時提醒</option>
+                    <option value="daily">每天提醒</option>
+                    <option value="none">不提醒</option>
+                  </select>
+                </label>
+                <label>
+                  提醒時間
+                  <select id="reminderInput">
+                    <option value="0">準時提醒</option>
+                    <option value="5">提前 5 分鐘</option>
+                    <option value="15" selected>提前 15 分鐘</option>
+                    <option value="30">提前 30 分鐘</option>
+                    <option value="60">提前 1 小時</option>
+                    <option value="120">提前 2 小時</option>
+                    <option value="360">提前 6 小時</option>
+                    <option value="720">提前 12 小時</option>
+                    <option value="1440">提前 1 天</option>
+                    <option value="2880">提前 2 天</option>
+                    <option value="10080">提前 1 週</option>
+                  </select>
+                </label>
+              </div>
               <label>
                 備註
                 <textarea id="noteInput"></textarea>
@@ -812,6 +826,11 @@
       const STORAGE_KEY = "han-burger-calendar-events-v1";
       const notifiedIds = new Set();
       const bridgeRequests = new Map();
+      const ALL_DAY_REMINDER_HOUR = 9;
+      const REPEAT_INTERVALS = {
+        hourly: 60 * 60 * 1000,
+        daily: 24 * 60 * 60 * 1000,
+      };
       const state = {
         cursor: startOfMonth(new Date()),
         selected: toDateKey(new Date()),
@@ -874,9 +893,9 @@
         eventId: document.querySelector("#eventId"),
         titleInput: document.querySelector("#titleInput"),
         dateInput: document.querySelector("#dateInput"),
-        timeModeInput: document.querySelector("#timeModeInput"),
         timeInput: document.querySelector("#timeInput"),
         colorInputs: document.querySelectorAll('input[name="eventColor"]'),
+        reminderRepeatInput: document.querySelector("#reminderRepeatInput"),
         reminderInput: document.querySelector("#reminderInput"),
         noteInput: document.querySelector("#noteInput"),
         cancelEdit: document.querySelector("#cancelEdit"),
@@ -918,8 +937,8 @@
         await uploadEvents();
       });
 
-      els.timeModeInput.addEventListener("change", () => {
-        applyTimeMode(els.timeModeInput.value);
+      els.reminderRepeatInput.addEventListener("change", () => {
+        applyReminderRepeat(els.reminderRepeatInput.value);
       });
 
       els.eventForm.addEventListener("submit", (event) => {
@@ -935,9 +954,10 @@
             id: existingId || createId(),
             title,
             date: els.dateInput.value,
-            time: els.timeModeInput.value === "time" ? els.timeInput.value : "",
+            time: els.timeInput.value,
             color: selectedColor(),
             reminderMinutes: Number(els.reminderInput.value),
+            reminderRepeat: els.reminderRepeatInput.value,
             note: els.noteInput.value.trim(),
             done: existingId
               ? Boolean(existingEvent?.done)
@@ -1131,10 +1151,11 @@
         els.eventId.value = item.id;
         els.titleInput.value = item.title;
         els.dateInput.value = item.date;
-        applyTimeMode(item.time ? "time" : "all-day");
         els.timeInput.value = item.time || "";
         setSelectedColor(item.color || "#7aa7ff");
-        els.reminderInput.value = String(item.reminderMinutes);
+        els.reminderRepeatInput.value = getReminderRepeat(item);
+        applyReminderRepeat(els.reminderRepeatInput.value);
+        els.reminderInput.value = String(getReminderMinutes(item));
         els.noteInput.value = item.note || "";
         els.cancelEdit.hidden = false;
         els.titleInput.focus();
@@ -1167,9 +1188,11 @@
         els.formTitle.textContent = "新增事件";
         els.eventId.value = "";
         els.titleInput.value = "";
-        applyTimeMode("all-day");
+        els.timeInput.value = "";
         setSelectedColor("#7aa7ff");
+        els.reminderRepeatInput.value = "once";
         els.reminderInput.value = "15";
+        applyReminderRepeat("once");
         els.noteInput.value = "";
         els.cancelEdit.hidden = true;
         resetFormDate();
@@ -1177,7 +1200,7 @@
 
       function resetFormDate() {
         els.dateInput.value = state.selected;
-        applyTimeMode("all-day");
+        els.timeInput.value = "";
       }
 
       function eventsForDate(dateKey) {
@@ -1193,29 +1216,24 @@
       function checkReminders() {
         const now = Date.now();
         for (const item of state.events) {
-          if (
-            item.done ||
-            item.deletedAt ||
-            !item.time ||
-            item.reminderMinutes < 0 ||
-            notifiedIds.has(item.id)
-          )
+          if (item.done || item.deletedAt)
             continue;
-          const eventTime = new Date(`${item.date}T${item.time}:00`).getTime();
-          const notifyAt = eventTime - item.reminderMinutes * 60000;
-          if (now >= notifyAt && now <= eventTime + 60000) {
-            notifiedIds.add(item.id);
+
+          const reminderKey = getReminderKey(item, now);
+          if (reminderKey && !notifiedIds.has(reminderKey)) {
+            notifiedIds.add(reminderKey);
             notify(item);
           }
         }
       }
 
       function notify(item) {
-        const body = `${item.date} ${item.time}${item.note ? " · " + item.note : ""}`;
+        const overdueText = Date.now() > getEventDueTime(item) ? "已過期 · " : "";
+        const body = `${overdueText}${item.date} ${eventTimeLabel(item)}${item.note ? " · " + item.note : ""}`;
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification(item.title, { body });
         }
-        showToast(`${item.title} · ${item.time}`);
+        showToast(`${item.title} · ${overdueText}${eventTimeLabel(item)}`);
       }
 
       function showToast(message) {
@@ -1413,15 +1431,18 @@
       }
 
       function eventMetaLabel(item) {
-        return item.time ? `${eventTimeLabel(item)} · ${reminderLabel(item)}` : "整天";
+        return `${eventTimeLabel(item)} · ${reminderLabel(item)}`;
       }
 
-      function applyTimeMode(mode) {
-        const isTimed = mode === "time";
-        els.timeModeInput.value = isTimed ? "time" : "all-day";
-        els.timeInput.hidden = !isTimed;
-        if (!isTimed) {
-          els.timeInput.value = "";
+      function populateTimeOptions() {
+        for (let hour = 0; hour < 24; hour += 1) {
+          for (const minute of [0, 30]) {
+            const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = value;
+            els.timeInput.append(option);
+          }
         }
       }
 
@@ -1451,12 +1472,62 @@
       }
 
       function reminderLabel(item) {
-        if (!item.time) return "整天";
-        const minutes = item.reminderMinutes;
-        if (minutes < 0) return "不提醒";
-        if (minutes === 0) return "準時提醒";
+        const repeat = getReminderRepeat(item);
+        if (repeat === "none") return "不提醒";
+
+        const repeatLabel = {
+          once: "提醒一次",
+          hourly: "每小時提醒",
+          daily: "每天提醒",
+        }[repeat] || "提醒一次";
+
+        return `${repeatLabel} · ${reminderTimeLabel(getReminderMinutes(item))}`;
+      }
+
+      function reminderTimeLabel(minutes) {
+        if (minutes === 0) return "準時";
         if (minutes < 60) return `提前 ${minutes} 分鐘`;
-        return `提前 ${minutes / 60} 小時`;
+        if (minutes < 1440) return `提前 ${minutes / 60} 小時`;
+        if (minutes < 10080) return `提前 ${minutes / 1440} 天`;
+        return `提前 ${minutes / 10080} 週`;
+      }
+
+      function getReminderRepeat(item) {
+        if (item.reminderRepeat) return item.reminderRepeat;
+        return Number(item.reminderMinutes) < 0 ? "none" : "once";
+      }
+
+      function getReminderMinutes(item) {
+        const minutes = Number(item.reminderMinutes);
+        return Number.isFinite(minutes) && minutes >= 0 ? minutes : 15;
+      }
+
+      function applyReminderRepeat(repeat) {
+        const isDisabled = repeat === "none";
+        els.reminderInput.disabled = isDisabled;
+      }
+
+      function getEventDueTime(item) {
+        const time = item.time || `${String(ALL_DAY_REMINDER_HOUR).padStart(2, "0")}:00`;
+        return new Date(`${item.date}T${time}:00`).getTime();
+      }
+
+      function getReminderKey(item, now) {
+        const repeat = getReminderRepeat(item);
+        if (repeat === "none") return null;
+
+        const startsAt = getEventDueTime(item) - getReminderMinutes(item) * 60000;
+        if (now < startsAt) return null;
+
+        if (repeat === "once") {
+          return `${item.id}:once`;
+        }
+
+        const interval = REPEAT_INTERVALS[repeat];
+        if (!interval) return `${item.id}:once`;
+
+        const occurrence = Math.floor((now - startsAt) / interval);
+        return `${item.id}:${repeat}:${occurrence}`;
       }
 
       function applyEventColor(element, color) {
@@ -1488,7 +1559,9 @@
         });
       }
 
+      populateTimeOptions();
       resetFormDate();
+      applyReminderRepeat(els.reminderRepeatInput.value);
       render();
       loadEventsFromDesktop();
       setInterval(checkReminders, 15000);
