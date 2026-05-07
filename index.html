@@ -395,10 +395,6 @@
       }
 
       html[data-widget="true"] #widgetMenuButton {
-        position: fixed;
-        top: 8px;
-        right: 8px;
-        z-index: 14;
         display: inline-grid;
         opacity: 0.72;
       }
@@ -447,6 +443,11 @@
 
       .widget-opacity input {
         width: 96px;
+        padding: 0;
+      }
+
+      html[data-widget="true"] .day-cell {
+        cursor: default;
       }
 
       html[data-widget="true"] .content-grid {
@@ -818,14 +819,6 @@
     <div class="app-shell">
       <main>
         <div class="widget-drag-zone" id="widgetDragZone" title="拖曳移動小工具"></div>
-        <button class="secondary-button icon-button" id="widgetMenuButton" type="button" title="小工具設定" aria-label="小工具設定">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 7h16" />
-            <path d="M4 12h16" />
-            <path d="M4 17h16" />
-          </svg>
-          <span class="sr-only">小工具設定</span>
-        </button>
         <div class="widget-controls" aria-label="桌面小工具控制">
           <button class="secondary-button icon-button" id="widgetMoveButton" type="button" title="移動小工具" aria-label="移動小工具">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -864,6 +857,14 @@
             </button>
             <button class="secondary-button" id="nextMonth" type="button">
               下個月
+            </button>
+            <button class="secondary-button icon-button" id="widgetMenuButton" type="button" title="小工具設定" aria-label="小工具設定">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16" />
+                <path d="M4 12h16" />
+                <path d="M4 17h16" />
+              </svg>
+              <span class="sr-only">小工具設定</span>
             </button>
             <button class="secondary-button icon-button" id="uploadButton" type="button" title="上傳" aria-label="上傳">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1052,6 +1053,11 @@
           return;
         }
 
+        if (message.source === "han-burger-desktop" && message.type === "calendar:eventsChanged") {
+          applyExternalEvents(message.payload);
+          return;
+        }
+
         if (message.source === "han-burger-desktop-control" && message.type === "calendar:uploadBeforeClose") {
           uploadEvents().finally(() => {
             event.source.postMessage({
@@ -1114,6 +1120,10 @@
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
         toast: document.querySelector("#toast"),
       };
+
+      if (window.parent === window && window.hanBurger?.onCalendarEventsChanged) {
+        window.hanBurger.onCalendarEventsChanged(applyExternalEvents);
+      }
 
       document.querySelector("#prevMonth").addEventListener("click", () => {
         shiftMonth(-1);
@@ -1309,8 +1319,10 @@
         for (const date of getCalendarDates(parseDateKey(state.selected))) {
           const key = toDateKey(date);
           const dayEvents = eventsForDate(key);
-          const cell = document.createElement("button");
-          cell.type = "button";
+          const cell = document.createElement(isWidgetMode ? "div" : "button");
+          if (!isWidgetMode) {
+            cell.type = "button";
+          }
           cell.className = [
             "day-cell",
             date.getMonth() === state.cursor.getMonth() ? "" : "outside",
@@ -1319,7 +1331,9 @@
           ]
             .filter(Boolean)
             .join(" ");
-          cell.addEventListener("click", () => selectDate(date));
+          if (!isWidgetMode) {
+            cell.addEventListener("click", () => selectDate(date));
+          }
 
           const number = document.createElement("div");
           number.className = "day-number";
@@ -1567,6 +1581,18 @@
         } catch {
           // Sandboxed desktop iframes may not expose localStorage.
         }
+      }
+
+      function applyExternalEvents(payload) {
+        if (!Array.isArray(payload?.events)) {
+          return;
+        }
+
+        state.events = payload.events;
+        state.hasLocalChanges = false;
+        state.sync = payload.sync || state.sync;
+        saveLocalEvents();
+        render();
       }
 
       function requestDesktop(type, payload = {}) {
