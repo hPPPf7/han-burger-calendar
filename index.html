@@ -348,7 +348,9 @@
         display: none;
       }
 
-      #closeWidgetButton {
+      #closeWidgetButton,
+      #widgetMenuButton,
+      #widgetMoveButton {
         display: none;
       }
 
@@ -371,36 +373,47 @@
         left: 0;
         right: 0;
         z-index: 12;
-        display: block;
-        height: 16px;
+        display: none;
+        height: 20px;
         cursor: move;
       }
 
-      html[data-widget="true"] .widget-drag-zone::before {
+      html[data-widget-moving="true"] .widget-drag-zone {
+        display: block;
+      }
+
+      html[data-widget-moving="true"] .widget-drag-zone::before {
         content: "";
         position: absolute;
-        top: 6px;
+        top: 7px;
         left: 50%;
         width: 44px;
         height: 4px;
         border-radius: 999px;
         background: color-mix(in srgb, var(--muted) 55%, transparent);
-        opacity: 0;
         transform: translateX(-50%);
-        transition: opacity 0.15s ease;
       }
 
-      html[data-widget="true"] main:hover .widget-drag-zone::before,
-      html[data-widget="true"] .widget-drag-zone:hover::before {
+      html[data-widget="true"] #widgetMenuButton {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 14;
+        display: inline-grid;
+        opacity: 0.72;
+      }
+
+      html[data-widget="true"] #widgetMenuButton:hover,
+      html[data-widget-controls="true"] #widgetMenuButton {
         opacity: 1;
       }
 
       html[data-widget="true"] .widget-controls {
         position: fixed;
-        top: 20px;
+        top: 54px;
         right: 10px;
         z-index: 13;
-        display: flex;
+        display: none;
         align-items: center;
         gap: 8px;
         padding: 6px;
@@ -408,19 +421,20 @@
         border-radius: 8px;
         background: color-mix(in srgb, var(--panel) 92%, transparent);
         box-shadow: 0 12px 30px var(--shadow);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.15s ease;
       }
 
-      html[data-widget="true"] main:hover .widget-controls,
-      html[data-widget="true"] .widget-controls:hover {
-        opacity: 1;
-        pointer-events: auto;
+      html[data-widget-controls="true"] .widget-controls {
+        display: flex;
       }
 
-      html[data-widget="true"] #closeWidgetButton {
+      html[data-widget="true"] #closeWidgetButton,
+      html[data-widget="true"] #widgetMoveButton {
         display: inline-grid;
+      }
+
+      html[data-widget-moving="true"] #widgetMoveButton {
+        border-color: var(--amber);
+        color: var(--amber);
       }
 
       .widget-opacity {
@@ -804,7 +818,26 @@
     <div class="app-shell">
       <main>
         <div class="widget-drag-zone" id="widgetDragZone" title="拖曳移動小工具"></div>
+        <button class="secondary-button icon-button" id="widgetMenuButton" type="button" title="小工具設定" aria-label="小工具設定">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16" />
+            <path d="M4 12h16" />
+            <path d="M4 17h16" />
+          </svg>
+          <span class="sr-only">小工具設定</span>
+        </button>
         <div class="widget-controls" aria-label="桌面小工具控制">
+          <button class="secondary-button icon-button" id="widgetMoveButton" type="button" title="移動小工具" aria-label="移動小工具">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2v20" />
+              <path d="m8 6 4-4 4 4" />
+              <path d="m8 18 4 4 4-4" />
+              <path d="M2 12h20" />
+              <path d="m6 8-4 4 4 4" />
+              <path d="m18 8 4 4-4 4" />
+            </svg>
+            <span class="sr-only">移動小工具</span>
+          </button>
           <label class="widget-opacity" for="widgetOpacity">
             透明度
             <input id="widgetOpacity" type="range" min="35" max="100" value="96" />
@@ -993,6 +1026,8 @@
         daily: 24 * 60 * 60 * 1000,
       };
       document.documentElement.dataset.widget = isWidgetMode ? "true" : "false";
+      document.documentElement.dataset.widgetControls = "false";
+      document.documentElement.dataset.widgetMoving = "false";
       if (params.get("theme")) {
         document.documentElement.dataset.theme = params.get("theme") === "light" ? "light" : "dark";
       }
@@ -1070,6 +1105,8 @@
         downloadButton: document.querySelector("#downloadButton"),
         uploadButton: document.querySelector("#uploadButton"),
         widgetButton: document.querySelector("#widgetButton"),
+        widgetMenuButton: document.querySelector("#widgetMenuButton"),
+        widgetMoveButton: document.querySelector("#widgetMoveButton"),
         widgetDragZone: document.querySelector("#widgetDragZone"),
         widgetOpacity: document.querySelector("#widgetOpacity"),
         closeWidgetButton: document.querySelector("#closeWidgetButton"),
@@ -1126,6 +1163,20 @@
         }
       });
 
+      els.widgetMenuButton.addEventListener("click", () => {
+        const isOpen = document.documentElement.dataset.widgetControls === "true";
+        document.documentElement.dataset.widgetControls = isOpen ? "false" : "true";
+        if (isOpen) {
+          document.documentElement.dataset.widgetMoving = "false";
+          widgetDrag = null;
+        }
+      });
+
+      els.widgetMoveButton.addEventListener("click", () => {
+        const isMoving = document.documentElement.dataset.widgetMoving === "true";
+        document.documentElement.dataset.widgetMoving = isMoving ? "false" : "true";
+      });
+
       els.widgetOpacity.addEventListener("input", async () => {
         try {
           await requestDesktop("calendar:setWidgetOpacity", {
@@ -1138,7 +1189,7 @@
 
       let widgetDrag = null;
       els.widgetDragZone.addEventListener("pointerdown", (event) => {
-        if (!isWidgetMode) return;
+        if (!isWidgetMode || document.documentElement.dataset.widgetMoving !== "true") return;
         widgetDrag = {
           pointerId: event.pointerId,
           x: event.screenX,
