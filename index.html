@@ -76,6 +76,15 @@
         overflow: hidden;
       }
 
+      html[data-widget="true"] body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+        pointer-events: none;
+        z-index: 8;
+      }
+
       button,
       input,
       textarea,
@@ -319,7 +328,7 @@
 
       html[data-widget="true"] main {
         gap: 10px;
-        padding: 10px;
+        padding: 18px 10px 10px;
       }
 
       html[data-widget="true"] .topbar {
@@ -343,16 +352,87 @@
         display: none;
       }
 
-      html[data-widget="true"] #closeWidgetButton {
-        display: inline-grid;
-      }
-
       html[data-widget="true"] .date-heading h2 {
         font-size: 20px;
       }
 
       html[data-widget="true"] .top-actions {
         flex-wrap: nowrap;
+      }
+
+      .widget-drag-zone,
+      .widget-controls {
+        display: none;
+      }
+
+      html[data-widget="true"] .widget-drag-zone {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 12;
+        display: block;
+        height: 16px;
+        cursor: move;
+      }
+
+      html[data-widget="true"] .widget-drag-zone::before {
+        content: "";
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 44px;
+        height: 4px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--muted) 55%, transparent);
+        opacity: 0;
+        transform: translateX(-50%);
+        transition: opacity 0.15s ease;
+      }
+
+      html[data-widget="true"] main:hover .widget-drag-zone::before,
+      html[data-widget="true"] .widget-drag-zone:hover::before {
+        opacity: 1;
+      }
+
+      html[data-widget="true"] .widget-controls {
+        position: fixed;
+        top: 20px;
+        right: 10px;
+        z-index: 13;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--panel) 92%, transparent);
+        box-shadow: 0 12px 30px var(--shadow);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+      }
+
+      html[data-widget="true"] main:hover .widget-controls,
+      html[data-widget="true"] .widget-controls:hover {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      html[data-widget="true"] #closeWidgetButton {
+        display: inline-grid;
+      }
+
+      .widget-opacity {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .widget-opacity input {
+        width: 96px;
       }
 
       html[data-widget="true"] .content-grid {
@@ -723,6 +803,20 @@
   <body>
     <div class="app-shell">
       <main>
+        <div class="widget-drag-zone" id="widgetDragZone" title="拖曳移動小工具"></div>
+        <div class="widget-controls" aria-label="桌面小工具控制">
+          <label class="widget-opacity" for="widgetOpacity">
+            透明度
+            <input id="widgetOpacity" type="range" min="35" max="100" value="96" />
+          </label>
+          <button class="secondary-button icon-button" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+            <span class="sr-only">關閉小工具</span>
+          </button>
+        </div>
         <header class="topbar">
           <div class="date-heading">
             <p id="todayLabel"></p>
@@ -759,13 +853,6 @@
             </button>
             <button class="secondary-button" id="widgetButton" type="button">
               桌面小工具
-            </button>
-            <button class="secondary-button icon-button" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-              <span class="sr-only">關閉小工具</span>
             </button>
           </div>
         </header>
@@ -983,6 +1070,8 @@
         downloadButton: document.querySelector("#downloadButton"),
         uploadButton: document.querySelector("#uploadButton"),
         widgetButton: document.querySelector("#widgetButton"),
+        widgetDragZone: document.querySelector("#widgetDragZone"),
+        widgetOpacity: document.querySelector("#widgetOpacity"),
         closeWidgetButton: document.querySelector("#closeWidgetButton"),
         syncOverlay: document.querySelector("#syncOverlay"),
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
@@ -1035,6 +1124,49 @@
         } catch (error) {
           showToast(`關閉失敗：${error.message}`);
         }
+      });
+
+      els.widgetOpacity.addEventListener("input", async () => {
+        try {
+          await requestDesktop("calendar:setWidgetOpacity", {
+            opacity: Number(els.widgetOpacity.value) / 100
+          });
+        } catch {
+          // Opacity is only available inside the desktop widget window.
+        }
+      });
+
+      let widgetDrag = null;
+      els.widgetDragZone.addEventListener("pointerdown", (event) => {
+        if (!isWidgetMode) return;
+        widgetDrag = {
+          pointerId: event.pointerId,
+          x: event.screenX,
+          y: event.screenY
+        };
+        els.widgetDragZone.setPointerCapture(event.pointerId);
+      });
+
+      els.widgetDragZone.addEventListener("pointermove", async (event) => {
+        if (!widgetDrag || widgetDrag.pointerId !== event.pointerId) return;
+        const deltaX = event.screenX - widgetDrag.x;
+        const deltaY = event.screenY - widgetDrag.y;
+        if (!deltaX && !deltaY) return;
+        widgetDrag.x = event.screenX;
+        widgetDrag.y = event.screenY;
+        try {
+          await requestDesktop("calendar:moveWidget", { deltaX, deltaY });
+        } catch {
+          widgetDrag = null;
+        }
+      });
+
+      els.widgetDragZone.addEventListener("pointerup", () => {
+        widgetDrag = null;
+      });
+
+      els.widgetDragZone.addEventListener("pointercancel", () => {
+        widgetDrag = null;
       });
 
       els.reminderRepeatInput.addEventListener("change", () => {
@@ -1405,6 +1537,12 @@
           }
           if (type === "calendar:closeWidget") {
             return window.hanBurger.closeCalendarWidget();
+          }
+          if (type === "calendar:moveWidget") {
+            return window.hanBurger.moveCalendarWidget(payload.deltaX, payload.deltaY);
+          }
+          if (type === "calendar:setWidgetOpacity") {
+            return window.hanBurger.setCalendarWidgetOpacity(payload.opacity);
           }
         }
 
