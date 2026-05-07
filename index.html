@@ -541,6 +541,38 @@
         opacity: 1;
       }
 
+      .sync-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(12, 13, 15, 0.72);
+        backdrop-filter: blur(8px);
+      }
+
+      .sync-card {
+        width: min(360px, calc(100vw - 36px));
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        background: var(--panel-2);
+        box-shadow: var(--shadow);
+        padding: 18px;
+        text-align: center;
+      }
+
+      .sync-card strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .sync-card span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
       @media (max-width: 980px) {
         .app-shell {
           grid-template-columns: 1fr;
@@ -739,6 +771,13 @@
       </main>
     </div>
 
+    <div class="sync-overlay hidden" id="syncOverlay" role="status" aria-live="polite">
+      <div class="sync-card">
+        <strong>正在抓取 Calendar 同步資料</strong>
+        <span id="syncOverlayMessage">請稍候，資料抓取完成後即可操作。</span>
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script>
@@ -751,6 +790,7 @@
         events: loadEvents(),
         formOpen: false,
         hasLocalChanges: false,
+        isDesktopSyncLoading: window.parent !== window,
         sync: null,
       };
 
@@ -784,12 +824,6 @@
         }
       });
 
-      window.addEventListener("pagehide", () => {
-        requestDesktop("calendar:uploadEvents", {
-          events: state.events
-        }).catch(() => {});
-      });
-
       const els = {
         mainMonthLabel: document.querySelector("#mainMonthLabel"),
         todayLabel: document.querySelector("#todayLabel"),
@@ -811,6 +845,8 @@
         cancelEdit: document.querySelector("#cancelEdit"),
         downloadButton: document.querySelector("#downloadButton"),
         uploadButton: document.querySelector("#uploadButton"),
+        syncOverlay: document.querySelector("#syncOverlay"),
+        syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
         toast: document.querySelector("#toast"),
       };
 
@@ -908,8 +944,14 @@
         const today = new Date();
         els.todayLabel.textContent = `今天 ${formatDateLong(today)}`;
         els.mainMonthLabel.textContent = formatMonth(state.cursor);
+        renderSyncOverlay();
         renderMonthGrid();
         renderAgenda();
+      }
+
+      function renderSyncOverlay() {
+        els.syncOverlay.classList.toggle("hidden", !state.isDesktopSyncLoading);
+        els.syncOverlayMessage.textContent = state.sync?.message || "請稍候，資料抓取完成後即可操作。";
       }
 
       function renderMonthGrid() {
@@ -1207,6 +1249,8 @@
       }
 
       async function loadEventsFromDesktop() {
+        state.isDesktopSyncLoading = window.parent !== window;
+        renderSyncOverlay();
         try {
           const payload = await requestDesktop("calendar:getEvents");
           if (Array.isArray(payload?.events)) {
@@ -1227,6 +1271,9 @@
             ok: true,
             message: "使用本機資料"
           };
+        } finally {
+          state.isDesktopSyncLoading = false;
+          renderSyncOverlay();
         }
       }
 
