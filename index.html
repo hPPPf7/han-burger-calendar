@@ -339,6 +339,14 @@
         display: none;
       }
 
+      #closeWidgetButton {
+        display: none;
+      }
+
+      html[data-widget="true"] #closeWidgetButton {
+        display: inline-grid;
+      }
+
       html[data-widget="true"] .date-heading h2 {
         font-size: 20px;
       }
@@ -752,6 +760,13 @@
             <button class="secondary-button" id="widgetButton" type="button">
               桌面小工具
             </button>
+            <button class="secondary-button icon-button" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+              <span class="sr-only">關閉小工具</span>
+            </button>
           </div>
         </header>
 
@@ -968,6 +983,7 @@
         downloadButton: document.querySelector("#downloadButton"),
         uploadButton: document.querySelector("#uploadButton"),
         widgetButton: document.querySelector("#widgetButton"),
+        closeWidgetButton: document.querySelector("#closeWidgetButton"),
         syncOverlay: document.querySelector("#syncOverlay"),
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
         toast: document.querySelector("#toast"),
@@ -1006,10 +1022,18 @@
 
       els.widgetButton.addEventListener("click", async () => {
         try {
-          await requestDesktop("calendar:openWidget");
-          showToast("已開啟桌面小工具。");
+          const result = await requestDesktop("calendar:openWidget");
+          showToast(result?.embedded === false ? "已開啟小工具視窗。" : "已嵌入 Windows 桌面。");
         } catch (error) {
           showToast(`開啟失敗：${error.message}`);
+        }
+      });
+
+      els.closeWidgetButton.addEventListener("click", async () => {
+        try {
+          await requestDesktop("calendar:closeWidget");
+        } catch (error) {
+          showToast(`關閉失敗：${error.message}`);
         }
       });
 
@@ -1378,6 +1402,9 @@
           }
           if (type === "calendar:openWidget") {
             return window.hanBurger.openCalendarWidget(document.documentElement.dataset.theme);
+          }
+          if (type === "calendar:closeWidget") {
+            return window.hanBurger.closeCalendarWidget();
           }
         }
 
