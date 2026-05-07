@@ -350,7 +350,8 @@
 
       #closeWidgetButton,
       #widgetMenuButton,
-      #widgetMoveButton {
+      #widgetMoveButton,
+      .widget-control-panel {
         display: none;
       }
 
@@ -410,9 +411,11 @@
         right: 10px;
         z-index: 13;
         display: none;
-        align-items: center;
-        gap: 8px;
-        padding: 6px;
+        width: min(240px, calc(100vw - 20px));
+        align-items: stretch;
+        gap: 10px;
+        flex-direction: column;
+        padding: 10px;
         border: 1px solid var(--border);
         border-radius: 8px;
         background: color-mix(in srgb, var(--panel) 92%, transparent);
@@ -425,12 +428,39 @@
 
       html[data-widget="true"] #closeWidgetButton,
       html[data-widget="true"] #widgetMoveButton {
-        display: inline-grid;
+        display: flex;
       }
 
       html[data-widget-moving="true"] #widgetMoveButton {
         border-color: var(--amber);
         color: var(--amber);
+      }
+
+      .widget-menu-action {
+        align-items: center;
+        justify-content: flex-start;
+        gap: 9px;
+        min-height: 40px;
+        width: 100%;
+      }
+
+      .widget-menu-action svg {
+        flex: 0 0 auto;
+      }
+
+      html[data-widget="true"] .widget-control-panel {
+        display: grid;
+        gap: 6px;
+      }
+
+      .widget-control-panel span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .widget-control-panel input {
+        width: 100%;
+        padding: 0;
       }
 
       .widget-opacity {
@@ -819,8 +849,8 @@
     <div class="app-shell">
       <main>
         <div class="widget-drag-zone" id="widgetDragZone" title="拖曳移動小工具"></div>
-        <div class="widget-controls" aria-label="桌面小工具控制">
-          <button class="secondary-button icon-button" id="widgetMoveButton" type="button" title="移動小工具" aria-label="移動小工具">
+        <div class="widget-controls" id="widgetControls" aria-label="桌面小工具控制">
+          <button class="secondary-button icon-button widget-menu-action" id="widgetMoveButton" type="button" title="移動小工具" aria-label="移動小工具">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 2v20" />
               <path d="m8 6 4-4 4 4" />
@@ -829,18 +859,22 @@
               <path d="m6 8-4 4 4 4" />
               <path d="m18 8 4 4-4 4" />
             </svg>
-            <span class="sr-only">移動小工具</span>
+            <span>移動小工具</span>
           </button>
-          <label class="widget-opacity" for="widgetOpacity">
-            透明度
+          <label class="widget-control-panel" for="widgetOpacity">
+            <span>透明度</span>
             <input id="widgetOpacity" type="range" min="35" max="100" value="96" />
           </label>
-          <button class="secondary-button icon-button" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
+          <label class="widget-control-panel" for="widgetScale">
+            <span>縮放大小</span>
+            <input id="widgetScale" type="range" min="65" max="150" value="100" />
+          </label>
+          <button class="secondary-button icon-button widget-menu-action" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
             </svg>
-            <span class="sr-only">關閉小工具</span>
+            <span>關閉小工具</span>
           </button>
         </div>
         <header class="topbar">
@@ -1112,9 +1146,11 @@
         uploadButton: document.querySelector("#uploadButton"),
         widgetButton: document.querySelector("#widgetButton"),
         widgetMenuButton: document.querySelector("#widgetMenuButton"),
+        widgetControls: document.querySelector("#widgetControls"),
         widgetMoveButton: document.querySelector("#widgetMoveButton"),
         widgetDragZone: document.querySelector("#widgetDragZone"),
         widgetOpacity: document.querySelector("#widgetOpacity"),
+        widgetScale: document.querySelector("#widgetScale"),
         closeWidgetButton: document.querySelector("#closeWidgetButton"),
         syncOverlay: document.querySelector("#syncOverlay"),
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
@@ -1123,6 +1159,12 @@
 
       if (window.parent === window && window.hanBurger?.onCalendarEventsChanged) {
         window.hanBurger.onCalendarEventsChanged(applyExternalEvents);
+      }
+      if (params.get("opacity")) {
+        els.widgetOpacity.value = params.get("opacity");
+      }
+      if (params.get("scale")) {
+        els.widgetScale.value = params.get("scale");
       }
 
       document.querySelector("#prevMonth").addEventListener("click", () => {
@@ -1159,6 +1201,12 @@
       els.widgetButton.addEventListener("click", async () => {
         try {
           const result = await requestDesktop("calendar:openWidget");
+          if (Number.isFinite(result?.opacity)) {
+            els.widgetOpacity.value = String(Math.round(result.opacity * 100));
+          }
+          if (Number.isFinite(result?.scale)) {
+            els.widgetScale.value = String(Math.round(result.scale * 100));
+          }
           showToast(result?.embedded === false ? "已開啟小工具視窗。" : "已嵌入 Windows 桌面。");
         } catch (error) {
           showToast(`開啟失敗：${error.message}`);
@@ -1182,6 +1230,14 @@
         }
       });
 
+      document.addEventListener("pointerdown", (event) => {
+        if (!isWidgetMode || document.documentElement.dataset.widgetControls !== "true") return;
+        if (els.widgetControls.contains(event.target) || els.widgetMenuButton.contains(event.target)) return;
+        document.documentElement.dataset.widgetControls = "false";
+        document.documentElement.dataset.widgetMoving = "false";
+        widgetDrag = null;
+      });
+
       els.widgetMoveButton.addEventListener("click", () => {
         const isMoving = document.documentElement.dataset.widgetMoving === "true";
         document.documentElement.dataset.widgetMoving = isMoving ? "false" : "true";
@@ -1194,6 +1250,16 @@
           });
         } catch {
           // Opacity is only available inside the desktop widget window.
+        }
+      });
+
+      els.widgetScale.addEventListener("input", async () => {
+        try {
+          await requestDesktop("calendar:setWidgetScale", {
+            scale: Number(els.widgetScale.value) / 100
+          });
+        } catch {
+          // Scaling is only available inside the desktop widget window.
         }
       });
 
@@ -1620,6 +1686,9 @@
           }
           if (type === "calendar:setWidgetOpacity") {
             return window.hanBurger.setCalendarWidgetOpacity(payload.opacity);
+          }
+          if (type === "calendar:setWidgetScale") {
+            return window.hanBurger.setCalendarWidgetScale(payload.scale);
           }
         }
 
