@@ -787,8 +787,8 @@
                   <select id="reminderRepeatInput">
                     <option value="none">不提醒</option>
                     <option value="once" selected>提醒一次</option>
-                    <option value="hourly">每小時提醒，直到完成</option>
-                    <option value="daily">每天提醒，直到完成</option>
+                    <option value="hourly">每小時提醒</option>
+                    <option value="daily">每天提醒</option>
                   </select>
                 </label>
                 <label id="reminderTimeField">
@@ -1528,7 +1528,7 @@
         const isHidden = repeat === "none";
         els.reminderTimeField.hidden = isHidden;
         els.reminderInput.disabled = isHidden;
-        els.reminderTimeLabel.textContent = repeat === "once" ? "提醒時間" : "開始提醒";
+        els.reminderTimeLabel.textContent = "提醒時間";
         updateReminderHelp();
       }
 
@@ -1540,22 +1540,30 @@
       function updateReminderHelp() {
         const repeat = els.reminderRepeatInput.value;
         if (repeat === "none") {
-          els.reminderHelp.textContent = "這個事件不會發出提醒。";
+          els.reminderHelp.textContent = "不會提醒。";
           return;
         }
 
-        const leadText = reminderTimeLabel(Number(els.reminderInput.value));
+        const leadText = reminderOffsetLabel(Number(els.reminderInput.value));
         const baseText = els.timeInput.value
-          ? `事件時間 ${els.timeInput.value}`
-          : "整天事件以當天 00:00 作為提醒基準";
+          ? els.timeInput.value
+          : "當天 00:00";
 
         if (repeat === "once") {
-          els.reminderHelp.textContent = `會依 ${baseText}，${leadText}提醒一次。`;
+          els.reminderHelp.textContent = `在 ${baseText}${leadText}提醒一次。`;
           return;
         }
 
         const repeatText = repeat === "hourly" ? "每小時" : "每天";
-        els.reminderHelp.textContent = `會依 ${baseText}，從${leadText}開始${repeatText}提醒，直到標示完成。過期未完成也會繼續提醒。`;
+        els.reminderHelp.textContent = `從 ${baseText}${leadText}開始，${repeatText}提醒；完成後停止。`;
+      }
+
+      function reminderOffsetLabel(minutes) {
+        if (minutes === 0) return "";
+        if (minutes < 60) return `前 ${minutes} 分鐘`;
+        if (minutes < 1440) return `前 ${minutes / 60} 小時`;
+        if (minutes < 10080) return `前 ${minutes / 1440} 天`;
+        return `前 ${minutes / 10080} 週`;
       }
 
       function getReminderKey(item, now) {
