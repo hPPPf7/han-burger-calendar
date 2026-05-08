@@ -351,6 +351,7 @@
       #closeWidgetButton,
       #widgetMenuButton,
       #widgetMoveButton,
+      #widgetResizeButton,
       .widget-control-panel {
         display: none;
       }
@@ -364,6 +365,7 @@
       }
 
       .widget-drag-zone,
+      .widget-resize-zone,
       .widget-controls {
         display: none;
       }
@@ -395,6 +397,33 @@
         transform: translateX(-50%);
       }
 
+      html[data-widget="true"] .widget-resize-zone {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        z-index: 12;
+        display: none;
+        width: 32px;
+        height: 32px;
+        cursor: nwse-resize;
+      }
+
+      html[data-widget-resizing="true"] .widget-resize-zone {
+        display: block;
+      }
+
+      html[data-widget-resizing="true"] .widget-resize-zone::before {
+        content: "";
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        width: 14px;
+        height: 14px;
+        border-right: 2px solid var(--amber);
+        border-bottom: 2px solid var(--amber);
+        box-shadow: 4px 4px 0 -2px var(--amber);
+      }
+
       html[data-widget="true"] #widgetMenuButton {
         display: inline-grid;
         opacity: 0.72;
@@ -407,7 +436,7 @@
 
       html[data-widget="true"] .widget-controls {
         position: fixed;
-        top: 54px;
+        top: 66px;
         right: 10px;
         z-index: 13;
         display: none;
@@ -418,7 +447,7 @@
         padding: 10px;
         border: 1px solid var(--border);
         border-radius: 8px;
-        background: color-mix(in srgb, var(--panel) 92%, transparent);
+        background: var(--panel);
         box-shadow: 0 12px 30px var(--shadow);
       }
 
@@ -427,11 +456,13 @@
       }
 
       html[data-widget="true"] #closeWidgetButton,
-      html[data-widget="true"] #widgetMoveButton {
+      html[data-widget="true"] #widgetMoveButton,
+      html[data-widget="true"] #widgetResizeButton {
         display: flex;
       }
 
-      html[data-widget-moving="true"] #widgetMoveButton {
+      html[data-widget-moving="true"] #widgetMoveButton,
+      html[data-widget-resizing="true"] #widgetResizeButton {
         border-color: var(--amber);
         color: var(--amber);
       }
@@ -628,6 +659,11 @@
         overflow: auto;
         scrollbar-gutter: stable;
         padding: 14px;
+      }
+
+      .agenda-list.is-empty {
+        overflow: hidden;
+        scrollbar-gutter: auto;
       }
 
       .agenda-item {
@@ -849,6 +885,7 @@
     <div class="app-shell">
       <main>
         <div class="widget-drag-zone" id="widgetDragZone" title="拖曳移動小工具"></div>
+        <div class="widget-resize-zone" id="widgetResizeZone" title="拖曳縮放小工具"></div>
         <div class="widget-controls" id="widgetControls" aria-label="桌面小工具控制">
           <button class="secondary-button icon-button widget-menu-action" id="widgetMoveButton" type="button" title="移動小工具" aria-label="移動小工具">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -861,13 +898,18 @@
             </svg>
             <span>移動小工具</span>
           </button>
+          <button class="secondary-button icon-button widget-menu-action" id="widgetResizeButton" type="button" title="縮放大小" aria-label="縮放大小">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 3h6v6" />
+              <path d="m21 3-7 7" />
+              <path d="M9 21H3v-6" />
+              <path d="m3 21 7-7" />
+            </svg>
+            <span>縮放大小</span>
+          </button>
           <label class="widget-control-panel" for="widgetOpacity">
             <span>透明度</span>
             <input id="widgetOpacity" type="range" min="35" max="100" value="96" />
-          </label>
-          <label class="widget-control-panel" for="widgetScale">
-            <span>縮放大小</span>
-            <input id="widgetScale" type="range" min="65" max="150" value="100" />
           </label>
           <button class="secondary-button icon-button widget-menu-action" id="closeWidgetButton" type="button" title="關閉小工具" aria-label="關閉小工具">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1149,8 +1191,9 @@
         widgetControls: document.querySelector("#widgetControls"),
         widgetMoveButton: document.querySelector("#widgetMoveButton"),
         widgetDragZone: document.querySelector("#widgetDragZone"),
+        widgetResizeButton: document.querySelector("#widgetResizeButton"),
+        widgetResizeZone: document.querySelector("#widgetResizeZone"),
         widgetOpacity: document.querySelector("#widgetOpacity"),
-        widgetScale: document.querySelector("#widgetScale"),
         closeWidgetButton: document.querySelector("#closeWidgetButton"),
         syncOverlay: document.querySelector("#syncOverlay"),
         syncOverlayMessage: document.querySelector("#syncOverlayMessage"),
@@ -1162,9 +1205,6 @@
       }
       if (params.get("opacity")) {
         els.widgetOpacity.value = params.get("opacity");
-      }
-      if (params.get("scale")) {
-        els.widgetScale.value = params.get("scale");
       }
 
       document.querySelector("#prevMonth").addEventListener("click", () => {
@@ -1204,9 +1244,6 @@
           if (Number.isFinite(result?.opacity)) {
             els.widgetOpacity.value = String(Math.round(result.opacity * 100));
           }
-          if (Number.isFinite(result?.scale)) {
-            els.widgetScale.value = String(Math.round(result.scale * 100));
-          }
           showToast(result?.embedded === false ? "已開啟小工具視窗。" : "已嵌入 Windows 桌面。");
         } catch (error) {
           showToast(`開啟失敗：${error.message}`);
@@ -1226,7 +1263,9 @@
         document.documentElement.dataset.widgetControls = isOpen ? "false" : "true";
         if (isOpen) {
           document.documentElement.dataset.widgetMoving = "false";
+          document.documentElement.dataset.widgetResizing = "false";
           widgetDrag = null;
+          widgetResize = null;
         }
       });
 
@@ -1235,12 +1274,21 @@
         if (els.widgetControls.contains(event.target) || els.widgetMenuButton.contains(event.target)) return;
         document.documentElement.dataset.widgetControls = "false";
         document.documentElement.dataset.widgetMoving = "false";
+        document.documentElement.dataset.widgetResizing = "false";
         widgetDrag = null;
+        widgetResize = null;
       });
 
       els.widgetMoveButton.addEventListener("click", () => {
         const isMoving = document.documentElement.dataset.widgetMoving === "true";
         document.documentElement.dataset.widgetMoving = isMoving ? "false" : "true";
+        document.documentElement.dataset.widgetResizing = "false";
+      });
+
+      els.widgetResizeButton.addEventListener("click", () => {
+        const isResizing = document.documentElement.dataset.widgetResizing === "true";
+        document.documentElement.dataset.widgetResizing = isResizing ? "false" : "true";
+        document.documentElement.dataset.widgetMoving = "false";
       });
 
       els.widgetOpacity.addEventListener("input", async () => {
@@ -1253,17 +1301,8 @@
         }
       });
 
-      els.widgetScale.addEventListener("input", async () => {
-        try {
-          await requestDesktop("calendar:setWidgetScale", {
-            scale: Number(els.widgetScale.value) / 100
-          });
-        } catch {
-          // Scaling is only available inside the desktop widget window.
-        }
-      });
-
       let widgetDrag = null;
+      let widgetResize = null;
       els.widgetDragZone.addEventListener("pointerdown", (event) => {
         if (!isWidgetMode || document.documentElement.dataset.widgetMoving !== "true") return;
         widgetDrag = {
@@ -1294,6 +1333,38 @@
 
       els.widgetDragZone.addEventListener("pointercancel", () => {
         widgetDrag = null;
+      });
+
+      els.widgetResizeZone.addEventListener("pointerdown", (event) => {
+        if (!isWidgetMode || document.documentElement.dataset.widgetResizing !== "true") return;
+        widgetResize = {
+          pointerId: event.pointerId,
+          x: event.screenX,
+          y: event.screenY
+        };
+        els.widgetResizeZone.setPointerCapture(event.pointerId);
+      });
+
+      els.widgetResizeZone.addEventListener("pointermove", async (event) => {
+        if (!widgetResize || widgetResize.pointerId !== event.pointerId) return;
+        const deltaX = event.screenX - widgetResize.x;
+        const deltaY = event.screenY - widgetResize.y;
+        if (!deltaX && !deltaY) return;
+        widgetResize.x = event.screenX;
+        widgetResize.y = event.screenY;
+        try {
+          await requestDesktop("calendar:resizeWidget", { deltaX, deltaY });
+        } catch {
+          widgetResize = null;
+        }
+      });
+
+      els.widgetResizeZone.addEventListener("pointerup", () => {
+        widgetResize = null;
+      });
+
+      els.widgetResizeZone.addEventListener("pointercancel", () => {
+        widgetResize = null;
       });
 
       els.reminderRepeatInput.addEventListener("change", () => {
@@ -1434,6 +1505,7 @@
         els.agendaTitle.textContent = formatDateLong(selectedDate);
         els.agendaCount.textContent = `${events.length} 項`;
         els.agendaList.innerHTML = "";
+        els.agendaList.classList.toggle("is-empty", !events.length);
         updateFormVisibility(events.length);
 
         if (!events.length) {
@@ -1687,8 +1759,8 @@
           if (type === "calendar:setWidgetOpacity") {
             return window.hanBurger.setCalendarWidgetOpacity(payload.opacity);
           }
-          if (type === "calendar:setWidgetScale") {
-            return window.hanBurger.setCalendarWidgetScale(payload.scale);
+          if (type === "calendar:resizeWidget") {
+            return window.hanBurger.resizeCalendarWidget(payload.deltaX, payload.deltaY);
           }
         }
 
