@@ -1092,12 +1092,15 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+    <script src="./mobile-config.js"></script>
+    <script src="./mobile-bridge.js"></script>
     <script>
       const STORAGE_KEY = "han-burger-calendar-events-v1";
       const notifiedIds = new Set();
       const bridgeRequests = new Map();
       const params = new URLSearchParams(window.location.search);
       const isWidgetMode = params.get("widget") === "1";
+      const isMobileApp = Boolean(window.hanBurgerMobile?.isNative?.());
       const REPEAT_INTERVALS = {
         hourly: 60 * 60 * 1000,
         daily: 24 * 60 * 60 * 1000,
@@ -1115,7 +1118,7 @@
         events: loadEvents(),
         formOpen: false,
         hasLocalChanges: false,
-        isDesktopSyncLoading: window.parent !== window,
+        isDesktopSyncLoading: window.parent !== window || isMobileApp,
         sync: null,
       };
 
@@ -1204,6 +1207,9 @@
       if (window.parent === window && window.hanBurger?.onCalendarEventsChanged) {
         window.hanBurger.onCalendarEventsChanged(applyExternalEvents);
       }
+      if (isMobileApp) {
+        els.widgetButton.style.display = "none";
+      }
       if (params.get("opacity")) {
         els.widgetOpacity.value = params.get("opacity");
       }
@@ -1223,6 +1229,13 @@
         render();
       });
       document.querySelector("#notifyButton").addEventListener("click", async () => {
+        if (window.hanBurgerMobile?.isNative?.()) {
+          const permission = await window.hanBurgerMobile.requestNotifications();
+          showToast(permission?.display === "granted" ? "手機通知已開啟。" : "尚未允許手機通知。");
+          await scheduleDeviceNotifications();
+          return;
+        }
+
         if (!("Notification" in window)) {
           showToast("這個環境不支援系統通知。");
           return;
@@ -1727,7 +1740,17 @@
       function saveEvents() {
         state.hasLocalChanges = true;
         saveLocalEvents();
+        scheduleDeviceNotifications();
         saveEventsToDesktop();
+      }
+
+      async function scheduleDeviceNotifications() {
+        if (!window.hanBurgerMobile?.isNative?.()) return;
+        try {
+          await window.hanBurgerMobile.scheduleNotifications(state.events);
+        } catch {
+          // Notification scheduling should not block editing or sync.
+        }
       }
 
       function saveLocalEvents() {
@@ -1751,6 +1774,21 @@
       }
 
       function requestDesktop(type, payload = {}) {
+        if (window.parent === window && window.hanBurgerMobile?.isNative?.()) {
+          if (type === "calendar:getEvents") {
+            return window.hanBurgerMobile.getEvents();
+          }
+          if (type === "calendar:saveEvents") {
+            return window.hanBurgerMobile.saveEvents(payload.events || []);
+          }
+          if (type === "calendar:downloadEvents") {
+            return window.hanBurgerMobile.downloadEvents();
+          }
+          if (type === "calendar:uploadEvents") {
+            return window.hanBurgerMobile.uploadEvents(payload.events || []);
+          }
+        }
+
         if (window.parent === window && window.hanBurger) {
           if (type === "calendar:getEvents") {
             return window.hanBurger.getCalendarEvents();
@@ -1818,6 +1856,7 @@
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
+            await scheduleDeviceNotifications();
             if (state.sync?.provider === "google-drive") {
               showToast(state.sync.ok ? "已同步 Google Drive。" : `Google Drive 同步失敗：${state.sync.message}`);
             }
@@ -1845,6 +1884,7 @@
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
+            await scheduleDeviceNotifications();
           }
         } catch {
           state.sync = {
@@ -1866,6 +1906,7 @@
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
+            await scheduleDeviceNotifications();
           }
           showToast(payload?.sync?.ok ? "已下載同步資料。" : `下載失敗：${payload?.sync?.message || "未知錯誤"}`);
         } catch (error) {
@@ -1887,6 +1928,7 @@
             saveLocalEvents();
             state.sync = payload.sync || null;
             render();
+            await scheduleDeviceNotifications();
           }
           showToast(payload?.sync?.ok ? "已上傳同步資料。" : `上傳失敗：${payload?.sync?.message || "未知錯誤"}`);
         } catch (error) {
