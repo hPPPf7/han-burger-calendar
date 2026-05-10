@@ -342,7 +342,6 @@
       html[data-widget="true"] .date-heading p,
       html[data-widget="true"] .agenda-panel,
       html[data-widget="true"] #uploadButton,
-      html[data-widget="true"] #downloadButton,
       html[data-widget="true"] #notifyButton,
       html[data-widget="true"] #widgetButton {
         display: none;
@@ -662,6 +661,7 @@
       }
 
       .agenda-list.is-empty {
+        align-content: start;
         overflow: hidden;
         scrollbar-gutter: auto;
       }
@@ -758,7 +758,7 @@
       .empty-state {
         display: grid;
         place-items: center;
-        min-height: 220px;
+        min-height: 96px;
         border: 1px dashed var(--border);
         border-radius: 8px;
         color: var(--faint);
@@ -1105,6 +1105,7 @@
       document.documentElement.dataset.widget = isWidgetMode ? "true" : "false";
       document.documentElement.dataset.widgetControls = "false";
       document.documentElement.dataset.widgetMoving = "false";
+      document.documentElement.dataset.widgetResizing = "false";
       if (params.get("theme")) {
         document.documentElement.dataset.theme = params.get("theme") === "light" ? "light" : "dark";
       }
@@ -1271,13 +1272,28 @@
 
       document.addEventListener("pointerdown", (event) => {
         if (!isWidgetMode || document.documentElement.dataset.widgetControls !== "true") return;
-        if (els.widgetControls.contains(event.target) || els.widgetMenuButton.contains(event.target)) return;
+        if (isWidgetControlTarget(event.target)) return;
         document.documentElement.dataset.widgetControls = "false";
         document.documentElement.dataset.widgetMoving = "false";
         document.documentElement.dataset.widgetResizing = "false";
         widgetDrag = null;
         widgetResize = null;
       });
+
+      function isWidgetControlTarget(target) {
+        return (
+          els.widgetControls.contains(target) ||
+          els.widgetMenuButton.contains(target) ||
+          (
+            document.documentElement.dataset.widgetMoving === "true" &&
+            els.widgetDragZone.contains(target)
+          ) ||
+          (
+            document.documentElement.dataset.widgetResizing === "true" &&
+            els.widgetResizeZone.contains(target)
+          )
+        );
+      }
 
       els.widgetMoveButton.addEventListener("click", () => {
         const isMoving = document.documentElement.dataset.widgetMoving === "true";
@@ -1455,7 +1471,7 @@
 
         for (const date of getCalendarDates(parseDateKey(state.selected))) {
           const key = toDateKey(date);
-          const dayEvents = eventsForDate(key);
+          const dayEvents = eventsForDate(key, { hideDoneInWidget: isWidgetMode });
           const cell = document.createElement(isWidgetMode ? "div" : "button");
           if (!isWidgetMode) {
             cell.type = "button";
@@ -1646,9 +1662,10 @@
         els.timeInput.value = "";
       }
 
-      function eventsForDate(dateKey) {
+      function eventsForDate(dateKey, options = {}) {
         return state.events
           .filter((event) => !event.deletedAt && event.date === dateKey)
+          .filter((event) => !(options.hideDoneInWidget && event.done))
           .sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
       }
 
